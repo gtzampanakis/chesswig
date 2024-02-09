@@ -3,11 +3,6 @@
 (use-modules (oop goops describe))
 (use-modules (util))
 
-; * A piece is a symbol, uppercase for black, lowercase for white, prnbqk,
-; PRNBQK.
-; * A square is a pair of numbers, (file . rank).
-; * A placement is a pair, (square . piece).
-
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
 (define pieces (append white-pieces black-pieces))
@@ -214,6 +209,7 @@
 (define (available-squares-from-coords coords position)
     (define placement (list-ref position 0))
     (case (piece-at-coords placement coords)
+        ((()) '())
         ((P p) (available-squares-for-pawn coords position))
         ((N n) (available-squares-for-knight coords position))
         ((B b) (available-squares-for-bishop coords position))
@@ -226,19 +222,62 @@
     (define active-color (list-ref position 1))
     (fold
         (lambda (piece f r previous)
-            (define coords (list f r))
+            (define coords-from (list f r))
             (append
                 (map
-                    (lambda (sq)
-                        (list piece sq))
-                    (available-squares-from-coords coords position))
+                    (lambda (coords-to)
+                        (list coords-from coords-to))
+                    (if
+                        (or
+                            (and (eq? active-color 'w) (white-piece? piece))
+                            (and (eq? active-color 'b) (black-piece? piece)))
+                        (available-squares-from-coords coords-from position)
+                        '()))
                 previous))
         '()
-        (filter
-            (if (eq? active-color 'w) white-piece? black-piece?)
-            placement)
+        placement
         file-coords
         rank-coords))
+
+(define (toggled-color color)
+    (case color
+        ((w) 'b)
+        ((b) 'w)))
+
+(define (position-after-move position move)
+    (define placement (list-ref position 0))
+    (define coords-from (car move))
+    (define coords-to (cadr move))
+    (define piece-moving (piece-at-coords placement coords-from))
+    (define capture? (piece-at-coords? placement coords-to))
+    (define pawn-move?
+        (or
+            (eq? piece-moving 'P)
+            (eq? piece-moving 'p)))
+    (define new-placement
+        (map
+            (lambda (piece f r)
+                (define coords (list f r))
+                (cond
+                    ((equal? coords coords-from)
+                        '())
+                    ((equal? coords coords-to)
+                        piece-moving)
+                    (else piece)))
+            placement
+            file-coords
+            rank-coords))
+    (list
+        new-placement
+        (toggled-color (list-ref position 1))
+        (list-ref position 2)
+        (list-ref position 3)
+        (if (or capture? pawn-move?)
+            0
+            (1+ (list-ref position 4)))
+        (+
+            (list-ref position 5)
+            (if (eq? (list-ref position 1) 'b) 1 0))))
 
 (define (available-squares-along-directions
             coords position directions
@@ -279,8 +318,9 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    (for-each d
-        (available-moves-from-position (decode-fen fen-initial)))
-)
+    (define position1 (decode-fen fen-initial))
+    (define move1 '((4 1) (4 3)))
+    (define position2 (position-after-move position1 move1))
+    (d position2))
 
 (main)
