@@ -1,3 +1,4 @@
+(use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
 (use-modules (oop goops))
 (use-modules (oop goops describe))
@@ -12,9 +13,9 @@
 (define (char->symbol char)
     (string->symbol (string char)))
 
-(define (decode-algebraic-square algebraic-square-string)
+(define (alg-to-square alg)
     (let* (
-            (chars (string->list algebraic-square-string))
+            (chars (string->list alg))
             (file-char (car chars))
             (rank-char (cadr chars)))
         (list
@@ -36,6 +37,101 @@
                 ((#\6) 5)
                 ((#\7) 6)
                 ((#\8) 7)))))
+
+(define (file-to-alg file)
+    (case file
+        ((0) "a")
+        ((1) "b")
+        ((2) "c")
+        ((3) "d")
+        ((4) "e")
+        ((5) "f")
+        ((6) "g")
+        ((7) "h")))
+
+(define (rank-to-alg rank)
+    (case rank
+        ((0) "1")
+        ((1) "2")
+        ((2) "3")
+        ((3) "4")
+        ((4) "5")
+        ((5) "6")
+        ((6) "7")
+        ((7) "8")))
+
+(define (square-to-alg sq)
+    (string-append
+        (file-to-alg (car sq))
+        (rank-to-alg (cadr sq))))
+
+(define (move-to-alg position move)
+    (define sq-from (car move))
+    (define sq-to (cadr move))
+    (define sq-to-str (square-to-alg sq-to))
+    (define placement (list-ref position 0))
+    (define piece-moving (piece-at-coords placement sq-from))
+    (define capture? (piece-at-coords? placement sq-to))
+    (define capture-str (if capture? "x" ""))
+    (define piece-moving-str
+        (case piece-moving
+            ((P p)
+                (if capture?
+                    (file-to-alg (car sq-from))
+                    ""))
+            ((N n) "N")
+            ((B b) "B")
+            ((Q q) "Q")
+            ((R r) "R")
+            ((K k) "K")))
+    (define rank-str
+        (call/cc
+            (lambda (cont)
+                (for-each
+                    (lambda (piece f r)
+                        (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
+                            (when (eq? piece piece-moving)
+                                (when (= f (car sq-from))
+                                    ; When same type of piece on same file.
+                                    (when (not (equal? (list f r) sq-from))
+                                        (for-each
+                                            (lambda (sq)
+                                                (when (equal? sq sq-to)
+                                                    (cont
+                                                        (rank-to-alg
+                                                            (cadr sq-from)))))
+                                            (available-squares-from-coords
+                                                     (list f r) position)))))))
+                    placement
+                    file-coords
+                    rank-coords)
+                "")))
+    (define file-str
+        (call/cc
+            (lambda (cont)
+                (for-each
+                    (lambda (piece f r)
+                        (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
+                            (when (eq? piece piece-moving)
+                                (when (not (= f (car sq-from)))
+                                    ; When same type of piece on different file.
+                                    (when (not (equal? (list f r) sq-from))
+                                        (for-each
+                                            (lambda (sq)
+                                                (when (equal? sq sq-to)
+                                                    (cont
+                                                        (file-to-alg
+                                                            (car sq-from)))))
+                                            (available-squares-from-coords
+                                                     (list f r) position)))))))
+                    placement
+                    file-coords
+                    rank-coords)
+                "")))
+    (define result
+        (string-append
+            piece-moving-str file-str rank-str capture-str sq-to-str))
+    result)
 
 (define (white-piece? piece)
     (member piece white-pieces))
@@ -88,7 +184,7 @@
 (define (decode-en-passant en-passant-string)
     (cond
         ((equal? en-passant-string "-") '())
-        (else (decode-algebraic-square en-passant-string))))
+        (else (alg-to-square en-passant-string))))
 
 (define (decode-halfmoves halfmoves-string)
     (string->number halfmoves-string))
@@ -279,6 +375,99 @@
             (list-ref position 5)
             (if (eq? (list-ref position 1) 'b) 1 0))))
 
+(define (piece-base-value piece)
+    (case piece
+        ((()) 0)
+        ((P) +1)
+        ((p) -1)
+        ((N) +3)
+        ((n) -3)
+        ((B) +3)
+        ((b) -3)
+        ((Q) +9)
+        ((q) -9)
+        ((R) +5)
+        ((r) -5)
+        ((K) +999999)
+        ((k) -999999)))
+
+(define (evaluate-position-static position)
+    (define placement (list-ref position 0))
+    (sum (map piece-base-value placement)))
+
+; An evaluation object has the following structure:
+; ((val move-seq) ...)
+
+(define (evaluate-position-at-ply position ply)
+    (if (= ply 0)
+        (list
+            (list (evaluate-position-static position) '()))
+        (let ((unsorted
+                (map
+                    (lambda (move)
+                        (define new-pos (position-after-move position move))
+                        (define eval-obj
+                            (evaluate-position-at-ply new-pos (- ply 0.5)))
+                        (if (null? eval-obj)
+                            (raise 'todo)
+                        ; Pick only the best continuation for the opponent.
+                            (let ((sel-proc
+                                    (if (eq? (list-ref position 1) 'w)
+                                        first last)))
+                                (match (sel-proc eval-obj)
+                                    ((val move-seq)
+                                        (list val (cons move move-seq)))))))
+                    (available-moves-from-position position))))
+            (sort
+                unsorted
+                (lambda (left-ls right-ls)
+                    (<
+                        (list-ref left-ls 0)
+                        (list-ref right-ls 0)))))))
+
+(define (display-val val)
+    (when (>= val 0)
+        (display "+"))
+    (display val))
+
+(define (display-move-seq position move-seq)
+    (let loop (
+            (position position)
+            (move-number 1)
+            (move-seq move-seq)
+            (first #t))
+        (define active-color (list-ref position 1))
+        (unless (null? move-seq)
+            (when (or (eq? active-color 'w) first)
+                (display move-number)
+                (display ".")
+                (display " "))
+            (when (eq? active-color 'b)
+                (when first
+                    (display "...")
+                    (display " ")))
+            (display (move-to-alg position (car move-seq)))
+            (display " ")
+            (loop
+                (position-after-move position (car move-seq))
+                (if (eq? active-color 'b)
+                    (1+ move-number)
+                    move-number)
+                (cdr move-seq)
+                #f))))
+
+(define (display-evaluation position eval-obj)
+    (match eval-obj
+        (((val* move-seq*) ...)
+            (for-each
+                (lambda (val move-seq)
+                    (display-val val)
+                    (display " ")
+                    (display-move-seq position move-seq)
+                    (newline))
+                val*
+                move-seq*))))
+
 (define (available-squares-along-directions
             coords position directions
             max-distance capture-allowed? non-capture-allowed?)
@@ -318,9 +507,10 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    (define position1 (decode-fen fen-initial))
-    (define move1 '((4 1) (4 3)))
-    (define position2 (position-after-move position1 move1))
-    (d position2))
+    (define position (decode-fen fen-initial))
+    (display-evaluation
+        position
+        (evaluate-position-at-ply position 1))
+)
 
 (main)
