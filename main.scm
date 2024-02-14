@@ -128,9 +128,24 @@
                     file-coords
                     rank-coords)
                 "")))
+    (define next-position (position-after-move position move))
+    (define check-str
+        (if (is-position-check? next-position) "+" ""))
+    (define checkmate-str
+        (if (is-position-checkmate? next-position) "#" ""))
+    (define check-or-checkmate-str
+        (cond
+            ((is-position-checkmate? next-position) "#")
+            ((is-position-check? next-position) "+")
+            (else "")))
     (define result
         (string-append
-            piece-moving-str file-str rank-str capture-str sq-to-str))
+            piece-moving-str
+            file-str
+            rank-str
+            capture-str
+            sq-to-str
+            check-or-checkmate-str))
     result)
 
 (define (white-piece? piece)
@@ -251,6 +266,40 @@
 
 (define (piece-at-coords? placement coords)
     (not (null? (piece-at-coords placement coords))))
+
+(define (toggle-active-color position)
+    (define active-color (list-ref position 1))
+    (define copy (apply list position))
+    (list-set! copy 1
+        (if (eq? active-color 'w) 'b 'w))
+    copy)
+
+(define (is-position-check? position-in)
+    (define position (toggle-active-color position-in))
+    (define placement (list-ref position 0))
+    (define king-to-capture (if (eq? (list-ref position 1) 'w) 'k 'K)) 
+    (define moves (available-moves-from-position position #t))
+    (call/cc
+        (lambda (cont)
+            (for-each
+                (lambda (move)
+                    (when
+                        (eq?
+                            (piece-at-coords placement (cadr move))
+                            king-to-capture)
+                        (cont #t)))
+                moves)
+            #f)))
+
+(define (is-position-checkmate? position)
+    (and
+        (null? (available-moves-from-position position #t))
+        (is-position-check? position)))
+
+(define (is-position-stalemate? position)
+    (and
+        (null? (available-moves-from-position position #t))
+        (not (is-position-check? position))))
 
 (define (filter-out-moves-that-allow-king-to-be-captured position moves)
     (filter
@@ -425,8 +474,17 @@
         ((k) -999999)))
 
 (define (evaluate-position-static position)
-    (define placement (list-ref position 0))
-    (sum (map piece-base-value placement)))
+    (define active-color (list-ref position 1))
+    (cond
+        ((is-position-checkmate? position)
+            (
+                (if (eq? active-color 'w) + -)
+                (inf)))
+        ((is-position-stalemate? position)
+            0)
+        (else
+            (let ((placement (list-ref position 0)))
+                (sum (map piece-base-value placement))))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
@@ -543,14 +601,16 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    (define position (decode-fen "8/2b2n2/8/4q2R/3P4/5N2/8/8 w - - 0 1"))
+    ; Solution is:      1. Nf6+ gxf6 2. Bxf7#
+    (define position
+        (decode-fen
+         "r2qkb1r/pp2nppp/3p4/2pNN1B1/2BnP3/3P4/PPP2PPP/R2bK2R w KQkq - 1 0"))
+
     (display-evaluation
         position
-        (evaluate-position-at-ply position 0.5))
-
-    (d
-        (available-moves-from-position
-            (decode-fen "8/8/8/8/5b2/4P3/3K4/8 w - - 0 1") #f))
+        (evaluate-position-at-ply
+            position
+            0.5))
 )
 
 (main)
