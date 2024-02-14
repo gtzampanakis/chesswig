@@ -101,7 +101,7 @@
                                                         (rank-to-alg
                                                             (cadr sq-from)))))
                                             (available-squares-from-coords
-                                                     (list f r) position)))))))
+                                                 (list f r) position #t)))))))
                     placement
                     file-coords
                     rank-coords)
@@ -123,7 +123,7 @@
                                                         (file-to-alg
                                                             (car sq-from)))))
                                             (available-squares-from-coords
-                                                     (list f r) position)))))))
+                                                 (list f r) position #t)))))))
                     placement
                     file-coords
                     rank-coords)
@@ -252,6 +252,12 @@
 (define (piece-at-coords? placement coords)
     (not (null? (piece-at-coords placement coords))))
 
+(define (filter-out-moves-that-allow-king-to-be-captured position moves)
+    (filter
+        (lambda (move)
+            (not (can-king-be-captured (position-after-move position move))))
+        moves))
+
 (define (available-squares-for-rook coords position)
     (available-squares-along-directions
             coords position '(u r d l) 7 #t #t))
@@ -267,6 +273,21 @@
 (define (available-squares-for-king coords position)
     (available-squares-along-directions
             coords position '(u ur r dr d dl l ul) 1 #t #t))
+
+(define (can-king-be-captured position)
+    (define placement (list-ref position 0))
+    (define active-color (list-ref position 1))
+    (define king (if (eq? active-color 'w) 'k 'K))
+    (define is-piece-of-active-color?
+        (if (eq? active-color 'w) white-piece? black-piece?))
+    (call/cc
+        (lambda (cont)
+            (for-each
+                (lambda (move)
+                    (when (eq? (piece-at-coords placement (cadr move)) king)
+                        (cont #t)))
+                (available-moves-from-position position #f))
+            #f)))
 
 (define (available-squares-for-pawn coords position)
     (define placement (list-ref position 0))
@@ -302,18 +323,29 @@
                 (next-coords-in-direction coords direction))
             knight-directions)))
 
-(define (available-squares-from-coords coords position)
+(define (available-squares-from-coords coords position check-for-checks)
     (define placement (list-ref position 0))
-    (case (piece-at-coords placement coords)
-        ((()) '())
-        ((P p) (available-squares-for-pawn coords position))
-        ((N n) (available-squares-for-knight coords position))
-        ((B b) (available-squares-for-bishop coords position))
-        ((Q q) (available-squares-for-queen coords position))
-        ((R r) (available-squares-for-rook coords position))
-        ((K k) (available-squares-for-king coords position))))
+    (define unchecked-for-checks
+        (case (piece-at-coords placement coords)
+            ((()) '())
+            ((P p) (available-squares-for-pawn coords position))
+            ((N n) (available-squares-for-knight coords position))
+            ((B b) (available-squares-for-bishop coords position))
+            ((Q q) (available-squares-for-queen coords position))
+            ((R r) (available-squares-for-rook coords position))
+            ((K k) (available-squares-for-king coords position))))
+    (if check-for-checks
+        (map
+            cadr
+            (filter-out-moves-that-allow-king-to-be-captured
+                position
+                (map
+                    (lambda (sq)
+                        (list coords sq))
+                    unchecked-for-checks)))
+        unchecked-for-checks))
 
-(define (available-moves-from-position position)
+(define (available-moves-from-position position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (fold
@@ -327,7 +359,8 @@
                         (or
                             (and (eq? active-color 'w) (white-piece? piece))
                             (and (eq? active-color 'b) (black-piece? piece)))
-                        (available-squares-from-coords coords-from position)
+                        (available-squares-from-coords
+                            coords-from position check-for-checks)
                         '()))
                 previous))
         '()
@@ -417,7 +450,7 @@
                                 (match (sel-proc eval-obj)
                                     ((val move-seq)
                                         (list val (cons move move-seq)))))))
-                    (available-moves-from-position position))))
+                    (available-moves-from-position position #t))))
             (sort
                 unsorted
                 (lambda (left-ls right-ls)
@@ -457,7 +490,10 @@
                 #f))))
 
 (define (display-evaluation position eval-obj)
-    (match eval-obj
+    (define active-color (list-ref position 1))
+    (define sorted-according-to-active-color
+        (if (eq? active-color 'w) (reverse eval-obj) eval-obj))
+    (match sorted-according-to-active-color
         (((val* move-seq*) ...)
             (for-each
                 (lambda (val move-seq)
@@ -507,10 +543,14 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    (define position (decode-fen fen-initial))
+    (define position (decode-fen "8/2b2n2/8/4q2R/3P4/5N2/8/8 w - - 0 1"))
     (display-evaluation
         position
-        (evaluate-position-at-ply position 1))
+        (evaluate-position-at-ply position 0.5))
+
+    (d
+        (available-moves-from-position
+            (decode-fen "8/8/8/8/5b2/4P3/3K4/8 w - - 0 1") #f))
 )
 
 (main)
