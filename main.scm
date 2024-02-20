@@ -257,7 +257,13 @@
             (decode-castling (list-ref field-strings 2))
             (decode-en-passant (list-ref field-strings 3))
             (decode-halfmoves (list-ref field-strings 4))
-            (decode-fullmoves (list-ref field-strings 5)))))
+            (decode-fullmoves (list-ref field-strings 5))
+            'unset ; available-moves-from-position check-for-checks #t
+            'unset ; available-moves-from-position check-for-checks #f
+            'unset ; is-position-check?
+            'unset ; is-position-checkmate?
+            'unset ; is-position-stalemate?
+            )))
 
 (define (next-coords-in-direction coords direction)
     (let* (
@@ -311,12 +317,31 @@
 
 (define (toggle-active-color position)
     (define active-color (list-ref position 1))
-    (define copy (list-copy position))
-    (list-set! copy 1
-        (if (eq? active-color 'w) 'b 'w))
-    copy)
+    (list
+        (list-ref position 0)
+        (if (eq? active-color 'w) 'b 'w)
+        (list-ref position 2)
+        (list-ref position 3)
+        (list-ref position 4)
+        (list-ref position 5)
+        'unset
+        'unset
+        'unset
+        'unset
+        'unset))
 
 (define (is-position-check? position-in)
+    (define ind 8)
+    (define cached (list-ref position-in ind))
+    (if (and #f (not (eq? cached 'unset)))
+        cached
+        (let (
+                (result
+                    (is-position-check-inner? position-in)))
+            (list-set! position-in ind result)
+            result)))
+
+(define (is-position-check-inner? position-in)
     (define position (toggle-active-color position-in))
     (define placement (list-ref position 0))
     (define king-to-capture (if (eq? (list-ref position 1) 'w) 'k 'K)) 
@@ -334,11 +359,33 @@
             #f)))
 
 (define (is-position-checkmate? position)
+    (define ind 9)
+    (define cached (list-ref position ind))
+    (if (and #f (not (eq? cached 'unset)))
+        cached
+        (let (
+                (result
+                    (is-position-checkmate-inner? position)))
+            (list-set! position ind result)
+            result)))
+
+(define (is-position-checkmate-inner? position)
     (and
         (null? (available-moves-from-position position #t))
         (is-position-check? position)))
 
 (define (is-position-stalemate? position)
+    (define ind 10)
+    (define cached (list-ref position ind))
+    (if (and #f (not (eq? cached 'unset)))
+        cached
+        (let (
+                (result
+                    (is-position-stalemate-inner? position)))
+            (list-set! position ind result)
+            result)))
+
+(define (is-position-stalemate-inner? position)
     (and
         (null? (available-moves-from-position position #t))
         (not (is-position-check? position))))
@@ -437,6 +484,18 @@
         unchecked-for-checks))
 
 (define (available-moves-from-position position check-for-checks)
+    (define ind (if check-for-checks 6 7))
+    (define cached (list-ref position ind))
+    (if (and #t (not (eq? cached 'unset)))
+        cached
+        (let (
+                (result
+                    (available-moves-from-position-inner
+                                position check-for-checks)))
+            (list-set! position ind result)
+            result)))
+
+(define (available-moves-from-position-inner position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (fold
@@ -497,7 +556,12 @@
             (1+ (list-ref position 4)))
         (+
             (list-ref position 5)
-            (if (eq? (list-ref position 1) 'b) 1 0))))
+            (if (eq? (list-ref position 1) 'b) 1 0))
+        'unset
+        'unset
+        'unset
+        'unset
+        'unset))
 
 (define (piece-base-value piece)
     (case piece
@@ -520,7 +584,7 @@
     (cond
         ((is-position-checkmate? position)
             (
-                (if (eq? active-color 'w) + -)
+                (if (eq? active-color 'w) - +)
                 (inf)))
         ((is-position-stalemate? position)
             0)
@@ -542,7 +606,9 @@
                         (define eval-obj
                             (evaluate-position-at-ply new-pos (- ply 0.5)))
                         (if (null? eval-obj)
-                            (raise 'todo)
+                            (list
+                                (evaluate-position-static new-pos)
+                                (cons move '()))
                         ; Pick only the best continuation for the opponent.
                             (let ((sel-proc
                                     (if (eq? (list-ref position 1) 'w)
@@ -554,14 +620,35 @@
             (sort
                 unsorted
                 (lambda (left-ls right-ls)
-                    (<
-                        (list-ref left-ls 0)
-                        (list-ref right-ls 0)))))))
+                    (let ((left-val (car left-ls)) (right-val (car right-ls)))
+                        (cond
+                            ((and (inf? left-val) (inf? right-val))
+                                (if (< left-val 0)
+                            ; When comparing two won sequences for black the
+                            ; best for black is the one where black wins in
+                            ; the fewest moves.
+                                    (<
+                                        (length (cadr left-ls))
+                                        (length (cadr right-ls)))
+                            ; When comparing two won sequences for white the
+                            ; best for black is the one where white wins in
+                            ; the most moves.
+                                    (>
+                                        (length (cadr left-ls))
+                                        (length (cadr right-ls)))))
+                            (else (< left-val right-val)))))))))
 
 (define (display-val val)
-    (when (>= val 0)
-        (display "+"))
-    (display val))
+    (cond
+        ((inf? val)
+            (if (> val 0)
+                (display "+#")
+                (display "-#")))
+        (else
+            (begin
+                (when (>= val 0)
+                    (display "+"))
+                (display val)))))
 
 (define (display-move-seq position move-seq)
     (let loop (
@@ -643,16 +730,15 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    ; Solution is:      1. Qb8+ Nxb8 2. Rd8#
     (define position
         (decode-fen
-         "4kb2/3n1p2/8/6B1/8/1Q6/8/2KR4 w - - 1 1"))
+         "k7/8/1QK5/8/8/8/8/8 w - - 0 1"))
 
     (display-evaluation
         position
         (evaluate-position-at-ply
             position
-            1.0))
+            2.0))
 )
 
 (main)
