@@ -311,7 +311,7 @@
 
 (define (toggle-active-color position)
     (define active-color (list-ref position 1))
-    (define copy (apply list position))
+    (define copy (list-copy position))
     (list-set! copy 1
         (if (eq? active-color 'w) 'b 'w))
     copy)
