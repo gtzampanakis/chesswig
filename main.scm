@@ -1,3 +1,4 @@
+(use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
 (use-modules (oop goops))
@@ -9,6 +10,51 @@
 (define pieces (append white-pieces black-pieces))
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
+
+(define-public (memoized-proc proc . args)
+  (define max-cache-size 50000)
+  (define key-to-cache-sublist (make-hash-table))
+  (define cache '())
+  (define cache-size 0)
+  (define cache-last-pair '())
+  (lambda args
+    (define cache-sublist (hash-ref key-to-cache-sublist args))
+    (if (eq? cache-sublist #f)
+      (let* (
+          (proc-result (apply proc args))
+          (cache-entry (cons args proc-result)))
+        ; cache grows from the end so we can easily drop the oldest records
+        ; from the front
+        (if (null? cache)
+          (begin
+            (set! cache (list cache-entry))
+            (set! cache-last-pair cache))
+          (begin
+            (set-cdr! cache-last-pair (list cache-entry))
+            (set! cache-last-pair (cdr cache-last-pair))))
+        (set! cache-size (1+ cache-size))
+        (when (> cache-size max-cache-size)
+          (let ((args-to-forget (caar cache)))
+            (set! cache (cdr cache))
+            (hash-remove! key-to-cache-sublist args-to-forget)
+            (set! cache-size (1- cache-size))))
+        (hash-set! key-to-cache-sublist args cache-last-pair)
+        (cdr cache-entry))
+      (let ((cache-entry (car cache-sublist))) (cdr cache-entry)))))
+
+(define-syntax define-memoized
+  (syntax-rules ()
+    ((_ (name . args) expr expr* ...)
+      (define name
+        (memoized-proc
+          (lambda args expr expr* ...))))))
+
+(define-syntax define-public-memoized
+  (syntax-rules ()
+    ((_ (name . args) expr expr* ...)
+     (begin
+       (define-memoized (name . args) expr expr* ...)
+       (export name)))))
 
 (define (char->symbol char)
     (string->symbol (string char)))
@@ -85,8 +131,8 @@
             ((R r) "R")
             ((K k) "K")))
     (define rank-str
-        (call/cc
-            (lambda (cont)
+        (call/ec
+            (lambda (return)
                 (for-each
                     (lambda (piece f r)
                         (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
@@ -97,7 +143,7 @@
                                         (for-each
                                             (lambda (sq)
                                                 (when (equal? sq sq-to)
-                                                    (cont
+                                                    (return
                                                         (rank-to-alg
                                                             (cadr sq-from)))))
                                             (available-squares-from-coords
@@ -107,8 +153,8 @@
                     rank-coords)
                 "")))
     (define file-str
-        (call/cc
-            (lambda (cont)
+        (call/ec
+            (lambda (return)
                 (for-each
                     (lambda (piece f r)
                         (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
@@ -119,7 +165,7 @@
                                         (for-each
                                             (lambda (sq)
                                                 (when (equal? sq sq-to)
-                                                    (cont
+                                                    (return
                                                         (file-to-alg
                                                             (car sq-from)))))
                                             (available-squares-from-coords
@@ -129,10 +175,6 @@
                     rank-coords)
                 "")))
     (define next-position (position-after-move position move))
-    (define check-str
-        (if (is-position-check? next-position) "+" ""))
-    (define checkmate-str
-        (if (is-position-checkmate? next-position) "#" ""))
     (define check-or-checkmate-str
         (cond
             ((is-position-checkmate? next-position) "#")
@@ -279,15 +321,15 @@
     (define placement (list-ref position 0))
     (define king-to-capture (if (eq? (list-ref position 1) 'w) 'k 'K)) 
     (define moves (available-moves-from-position position #t))
-    (call/cc
-        (lambda (cont)
+    (call/ec
+        (lambda (return)
             (for-each
                 (lambda (move)
                     (when
                         (eq?
                             (piece-at-coords placement (cadr move))
                             king-to-capture)
-                        (cont #t)))
+                        (return #t)))
                 moves)
             #f)))
 
@@ -329,12 +371,12 @@
     (define king (if (eq? active-color 'w) 'k 'K))
     (define is-piece-of-active-color?
         (if (eq? active-color 'w) white-piece? black-piece?))
-    (call/cc
-        (lambda (cont)
+    (call/ec
+        (lambda (return)
             (for-each
                 (lambda (move)
                     (when (eq? (piece-at-coords placement (cadr move)) king)
-                        (cont #t)))
+                        (return #t)))
                 (available-moves-from-position position #f))
             #f)))
 
@@ -601,16 +643,16 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
 (define (main)
-    ; Solution is:      1. Nf6+ gxf6 2. Bxf7#
+    ; Solution is:      1. Qb8+ Nxb8 2. Rd8#
     (define position
         (decode-fen
-         "r2qkb1r/pp2nppp/3p4/2pNN1B1/2BnP3/3P4/PPP2PPP/R2bK2R w KQkq - 1 0"))
+         "4kb2/3n1p2/8/6B1/8/1Q6/8/2KR4 w - - 1 1"))
 
     (display-evaluation
         position
         (evaluate-position-at-ply
             position
-            0.5))
+            1.0))
 )
 
 (main)

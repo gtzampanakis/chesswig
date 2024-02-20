@@ -1,3 +1,3 @@
 #!/bin/bash
 
-guile -L . main.scm
+time guile -L . main.scm
