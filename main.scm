@@ -4,6 +4,9 @@
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
+(use-modules (statprof))
+
+(define profile? #t)
 
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
@@ -732,13 +735,18 @@
 (define (main)
     (define position
         (decode-fen
-         "k7/8/1QK5/8/8/8/8/8 w - - 0 1"))
+         "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
 
     (display-evaluation
         position
         (evaluate-position-at-ply
             position
-            2.0))
+            1.0))
 )
 
-(main)
+(if profile?
+    (statprof
+        main
+        #:display-style 'flat
+        #:loop 1)
+    (main))
