@@ -52,13 +52,6 @@
         (memoized-proc
           (lambda args expr expr* ...))))))
 
-(define-syntax define-public-memoized
-  (syntax-rules ()
-    ((_ (name . args) expr expr* ...)
-     (begin
-       (define-memoized (name . args) expr expr* ...)
-       (export name)))))
-
 (define (char->symbol char)
     (string->symbol (string char)))
 
