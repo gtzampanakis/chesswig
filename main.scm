@@ -1,6 +1,7 @@
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
+(use-modules (srfi srfi-41))
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
@@ -386,12 +387,6 @@
         (null? (available-moves-from-position position #t))
         (not (is-position-check? position))))
 
-(define (filter-out-moves-that-allow-king-to-be-captured position moves)
-    (filter
-        (lambda (move)
-            (not (can-king-be-captured (position-after-move position move))))
-        moves))
-
 (define (available-squares-for-rook coords position)
     (available-squares-along-directions
             coords position '(u r d l) 7 #t #t))
@@ -471,8 +466,10 @@
     (if check-for-checks
         (map
             cadr
-            (filter-out-moves-that-allow-king-to-be-captured
-                position
+            (filter
+                (lambda (move)
+                    (not (can-king-be-captured
+                            (position-after-move position move))))
                 (map
                     (lambda (sq)
                         (list coords sq))
