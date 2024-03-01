@@ -345,7 +345,7 @@
     (define moves (available-moves-from-position position #t))
     (call/ec
         (lambda (return)
-            (for-each
+            (stream-for-each
                 (lambda (move)
                     (when
                         (eq?
@@ -411,7 +411,7 @@
         (if (eq? active-color 'w) white-piece? black-piece?))
     (call/ec
         (lambda (return)
-            (for-each
+            (stream-for-each
                 (lambda (move)
                     (when (eq? (piece-at-coords placement (cadr move)) king)
                         (return #t)))
@@ -491,25 +491,31 @@
 (define (available-moves-from-position-inner position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
-    (fold
-        (lambda (piece f r previous)
+    (stream-fold
+        (lambda (previous piece-f-r)
+            (define piece (car piece-f-r))
+            (define f (cadr piece-f-r))
+            (define r (caddr piece-f-r))
             (define coords-from (list f r))
-            (append
-                (map
+            (stream-append
+                (stream-map
                     (lambda (coords-to)
                         (list coords-from coords-to))
                     (if
                         (or
                             (and (eq? active-color 'w) (white-piece? piece))
                             (and (eq? active-color 'b) (black-piece? piece)))
-                        (available-squares-from-coords
-                            coords-from position check-for-checks)
-                        '()))
+                        (list->stream
+                            (available-squares-from-coords
+                                coords-from position check-for-checks))
+                        stream-null))
                 previous))
-        '()
-        placement
-        file-coords
-        rank-coords))
+        stream-null
+        (list->stream
+            (zip
+                placement
+                file-coords
+                rank-coords))))
 
 (define (toggled-color color)
     (case color
@@ -593,23 +599,24 @@
         (list
             (list (evaluate-position-static position) '()))
         (let ((unsorted
-                (map
-                    (lambda (move)
-                        (define new-pos (position-after-move position move))
-                        (define eval-obj
-                            (evaluate-position-at-ply new-pos (- ply 0.5)))
-                        (if (null? eval-obj)
-                            (list
-                                (evaluate-position-static new-pos)
-                                (cons move '()))
-                        ; Pick only the best continuation for the opponent.
-                            (let ((sel-proc
-                                    (if (eq? (list-ref position 1) 'w)
-                                        first last)))
-                                (match (sel-proc eval-obj)
-                                    ((val move-seq)
-                                        (list val (cons move move-seq)))))))
-                    (available-moves-from-position position #t))))
+                (stream->list
+                    (stream-map
+                        (lambda (move)
+                            (define new-pos (position-after-move position move))
+                            (define eval-obj
+                                (evaluate-position-at-ply new-pos (- ply 0.5)))
+                            (if (null? eval-obj)
+                                (list
+                                    (evaluate-position-static new-pos)
+                                    (cons move '()))
+                            ; Pick only the best continuation for the opponent.
+                                (let ((sel-proc
+                                        (if (eq? (list-ref position 1) 'w)
+                                            first last)))
+                                    (match (sel-proc eval-obj)
+                                        ((val move-seq)
+                                            (list val (cons move move-seq)))))))
+                        (available-moves-from-position position #t)))))
             (sort
                 unsorted
                 (lambda (left-ls right-ls)
