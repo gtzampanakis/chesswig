@@ -1,5 +1,10 @@
 (define-module (stream))
 
+; A stream is either stream-null or a pair whose car is some value and whose
+; cdr is a thunk which returns a stream. I tried doing this with promises (i.e.
+; delay/force) but it's about 2x slower, probably due to the memoization
+; overhead.
+
 (use-modules (util))
 
 (define-public stream-null '())
@@ -10,7 +15,7 @@
     (let loop ((s s))
         (unless (stream-null? s)
             (proc (car s))
-            (loop (force (cdr s))))))
+            (loop ((cdr s))))))
 
 (define-public (stream-map proc s)
     (let loop ((s s))
@@ -18,7 +23,7 @@
             stream-null
             (cons
                 (proc (car s))
-                (delay (loop (force (cdr s))))))))
+                (lambda () (loop ((cdr s))))))))
 
 (define-public stream-append 
     (lambda streams
@@ -30,7 +35,7 @@
                         (loop-1 (cdr streams))
                         (cons
                             (car s)
-                            (delay (loop-2 (force (cdr s)))))))))))
+                            (lambda () (loop-2 ((cdr s)))))))))))
 
 (define-public (list->stream ls)
     (let loop ((ls ls))
@@ -38,7 +43,7 @@
             stream-null
             (cons
                 (car ls)    
-                (delay (loop (cdr ls)))))))
+                (lambda () (loop (cdr ls)))))))
 
 (define-public (stream->list s)
     (let loop ((r '()) (s s))
@@ -46,4 +51,4 @@
             (reverse r)
             (loop
                 (cons (car s) r)
-                (force (cdr s))))))
+                ((cdr s))))))
