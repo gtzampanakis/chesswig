@@ -1,13 +1,14 @@
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
-(use-modules (srfi srfi-41))
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
+;(use-modules (srfi srfi-41))
+(use-modules (stream))
 (use-modules (statprof))
 
-(define profile? #t)
+(define profile? #f)
 
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
@@ -491,31 +492,26 @@
 (define (available-moves-from-position-inner position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
-    (stream-fold
-        (lambda (previous piece-f-r)
-            (define piece (car piece-f-r))
-            (define f (cadr piece-f-r))
-            (define r (caddr piece-f-r))
+    (fold
+        (lambda (piece f r previous)
             (define coords-from (list f r))
             (stream-append
-                (stream-map
-                    (lambda (coords-to)
-                        (list coords-from coords-to))
-                    (if
-                        (or
-                            (and (eq? active-color 'w) (white-piece? piece))
-                            (and (eq? active-color 'b) (black-piece? piece)))
-                        (list->stream
+                (list->stream
+                    (map
+                        (lambda (coords-to)
+                            (list coords-from coords-to))
+                        (if
+                            (or
+                                (and (eq? active-color 'w) (white-piece? piece))
+                                (and (eq? active-color 'b) (black-piece? piece)))
                             (available-squares-from-coords
-                                coords-from position check-for-checks))
-                        stream-null))
+                                coords-from position check-for-checks)
+                            '())))
                 previous))
         stream-null
-        (list->stream
-            (zip
-                placement
-                file-coords
-                rank-coords))))
+        placement
+        file-coords
+        rank-coords))
 
 (define (toggled-color color)
     (case color
