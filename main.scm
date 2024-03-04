@@ -10,6 +10,8 @@
 
 (define profile? #f)
 
+(define caching? #f)
+
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
 (define pieces (append white-pieces black-pieces))
@@ -331,7 +333,7 @@
 (define (is-position-check? position-in)
     (define ind 8)
     (define cached (list-ref position-in ind))
-    (if (and #f (not (eq? cached 'unset)))
+    (if (and caching? (not (eq? cached 'unset)))
         cached
         (let (
                 (result
@@ -359,7 +361,7 @@
 (define (is-position-checkmate? position)
     (define ind 9)
     (define cached (list-ref position ind))
-    (if (and #f (not (eq? cached 'unset)))
+    (if (and caching? (not (eq? cached 'unset)))
         cached
         (let (
                 (result
@@ -375,7 +377,7 @@
 (define (is-position-stalemate? position)
     (define ind 10)
     (define cached (list-ref position ind))
-    (if (and #f (not (eq? cached 'unset)))
+    (if (and caching? (not (eq? cached 'unset)))
         cached
         (let (
                 (result
@@ -480,7 +482,7 @@
 (define (available-moves-from-position position check-for-checks)
     (define ind (if check-for-checks 6 7))
     (define cached (list-ref position ind))
-    (if (and #t (not (eq? cached 'unset)))
+    (if (and caching? (not (eq? cached 'unset)))
         cached
         (let (
                 (result
