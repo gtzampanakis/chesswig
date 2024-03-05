@@ -390,19 +390,19 @@
         (null? (available-moves-from-position position #t))
         (not (is-position-check? position))))
 
-(define (available-squares-for-rook coords position)
+(define-stream (available-squares-for-rook coords position)
     (available-squares-along-directions
             coords position '(u r d l) 7 #t #t))
 
-(define (available-squares-for-bishop coords position)
+(define-stream (available-squares-for-bishop coords position)
     (available-squares-along-directions
             coords position '(ur dr dl ul) 7 #t #t))
 
-(define (available-squares-for-queen coords position)
+(define-stream (available-squares-for-queen coords position)
     (available-squares-along-directions
             coords position '(u ur r dr d dl l ul) 7 #t #t))
 
-(define (available-squares-for-king coords position)
+(define-stream (available-squares-for-king coords position)
     (available-squares-along-directions
             coords position '(u ur r dr d dl l ul) 1 #t #t))
 
@@ -421,7 +421,7 @@
                 (available-moves-from-position position #f))
             #f)))
 
-(define (available-squares-for-pawn coords position)
+(define-stream (available-squares-for-pawn coords position)
     (define placement (list-ref position 0))
     (define color
         (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
@@ -429,7 +429,7 @@
     (define forward-right-direction (if (eq? color 'w) 'ur 'dl))
     (define forward-left-direction (if (eq? color 'w) 'ul 'dr))
     (define initial-rank (if (eq? color 'w) 1 6))
-    (append
+    (stream-append
         (available-squares-along-directions
             coords position
                 (list forward-direction)
@@ -438,24 +438,24 @@
             coords position
             (list forward-right-direction forward-left-direction) 1 #t #f)))
 
-(define (available-squares-for-knight coords position)
+(define-stream (available-squares-for-knight coords position)
     (define placement (list-ref position 0))
     (define
         color
         (if (member (piece-at-coords placement coords) white-pieces)
             'w 'b))
-    (filter
+    (stream-filter
         (lambda (candidate-coords)
             (and (not (null? candidate-coords))
                 (not
                     (friendly-piece-at-coords?
                         placement candidate-coords color))))
-        (map
+        (stream-map
             (lambda (direction)
                 (next-coords-in-direction coords direction))
-            knight-directions)))
+            (list->stream knight-directions))))
 
-(define (available-squares-from-coords coords position check-for-checks)
+(define-stream (available-squares-from-coords coords position check-for-checks)
     (define placement (list-ref position 0))
     (define unchecked-for-checks
         (case (piece-at-coords placement coords)
@@ -467,19 +467,19 @@
             ((R r) (available-squares-for-rook coords position))
             ((K k) (available-squares-for-king coords position))))
     (if check-for-checks
-        (map
+        (stream-map
             cadr
-            (filter
+            (stream-filter
                 (lambda (move)
                     (not (can-king-be-captured
                             (position-after-move position move))))
-                (map
+                (stream-map
                     (lambda (sq)
                         (list coords sq))
                     unchecked-for-checks)))
         unchecked-for-checks))
 
-(define (available-moves-from-position position check-for-checks)
+(define-stream (available-moves-from-position position check-for-checks)
     (define ind (if check-for-checks 6 7))
     (define cached (list-ref position ind))
     (if (and caching? (not (eq? cached 'unset)))
@@ -491,29 +491,33 @@
             (list-set! position ind result)
             result)))
 
-(define (available-moves-from-position-inner position check-for-checks)
+(define-stream (available-moves-from-position-inner position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
-    (fold
-        (lambda (piece f r previous)
+    (stream-fold
+        (lambda (previous piece-f-r)
+            (define piece (car piece-f-r))
+            (define f (cadr piece-f-r))
+            (define r (caddr piece-f-r))
             (define coords-from (list f r))
             (stream-append
-                (list->stream
-                    (map
-                        (lambda (coords-to)
-                            (list coords-from coords-to))
-                        (if
-                            (or
-                                (and (eq? active-color 'w) (white-piece? piece))
-                                (and (eq? active-color 'b) (black-piece? piece)))
-                            (available-squares-from-coords
-                                coords-from position check-for-checks)
-                            '())))
+                (stream-map
+                    (lambda (coords-to)
+                        (list coords-from coords-to))
+                    (if
+                        (or
+                            (and (eq? active-color 'w) (white-piece? piece))
+                            (and (eq? active-color 'b) (black-piece? piece)))
+                        (available-squares-from-coords
+                            coords-from position check-for-checks)
+                        stream-null))
                 previous))
         stream-null
-        placement
-        file-coords
-        rank-coords))
+        (list->stream
+            (zip
+                placement
+                file-coords
+                rank-coords))))
 
 (define (toggled-color color)
     (case color
@@ -700,53 +704,45 @@
     (stream-fold
         (lambda (previous direction)
             (stream-append previous
-                (stream-let loop (
+                (let loop (
                         (coords (next-coords-in-direction coords direction))
-                        (max-distance max-distance)
-                        (stream-of-coords-out stream-null))
+                        (max-distance max-distance))
                     (cond
                         ((= max-distance 0)
-                            stream-of-coords-out)
+                            stream-null)
                         ((null? coords)
-                            stream-of-coords-out)
+                            stream-null)
                         ((friendly-piece-at-coords? placement coords color)
-                            stream-of-coords-out)
+                            stream-null)
                         ((enemy-piece-at-coords? placement coords color)
                             (if capture-allowed?
-                                (stream-cons coords stream-of-coords-out)
-                                stream-of-coords-out))
+                                (stream coords)
+                                stream-null))
                         ((not non-capture-allowed?)
-                            stream-of-coords-out)
-                        (else (loop
-                                (next-coords-in-direction coords direction)
-                                (1- max-distance)
-                                (stream-cons coords stream-of-coords-out)))))))
+                            stream-null)
+                        (else
+                            (stream-cons
+                                coords
+                                (loop
+                                    (next-coords-in-direction coords direction)
+                                    (1- max-distance))))))))
         stream-null
         (list->stream directions)))
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
-;(define (main)
-;    (define position
-;        (decode-fen
-;         "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-;
-;    (display-evaluation
-;        position
-;        (evaluate-position-at-ply
-;            position
-;            1.0))
-;)
 (define (main)
-    (stream-for-each d
-        (available-squares-along-directions
-            (list 0 1)
-            (decode-fen fen-initial)
-            (list 'u)
-            2
-            #t
-            #t)))
+    (define position
+        (decode-fen
+         "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+
+    (display-evaluation
+        position
+        (evaluate-position-at-ply
+            position
+            1.0))
+)
 
 (if profile?
     (statprof
