@@ -4,8 +4,8 @@
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
-;(use-modules (srfi srfi-41))
-(use-modules (stream))
+(use-modules (srfi srfi-41))
+;(use-modules (stream))
 (use-modules (statprof))
 
 (define profile? #f)
@@ -689,64 +689,64 @@
                 val*
                 move-seq*))))
 
-(define (available-squares-along-directions
-            coords position directions
-            max-distance capture-allowed? non-capture-allowed?)
+(define-stream (available-squares-along-directions
+                    coords position directions
+                    max-distance capture-allowed? non-capture-allowed?)
     (define placement (list-ref position 0))
     (define
         color
         (if (member (piece-at-coords placement coords) white-pieces)
             'w 'b))
-    (fold
-        (lambda (direction previous)
-            (append previous
-                (let loop (
+    (stream-fold
+        (lambda (previous direction)
+            (stream-append previous
+                (stream-let loop (
                         (coords (next-coords-in-direction coords direction))
                         (max-distance max-distance)
-                        (list-of-coords-out '()))
+                        (stream-of-coords-out stream-null))
                     (cond
                         ((= max-distance 0)
-                            list-of-coords-out)
+                            stream-of-coords-out)
                         ((null? coords)
-                            list-of-coords-out)
+                            stream-of-coords-out)
                         ((friendly-piece-at-coords? placement coords color)
-                            list-of-coords-out)
+                            stream-of-coords-out)
                         ((enemy-piece-at-coords? placement coords color)
                             (if capture-allowed?
-                                (cons coords list-of-coords-out)
-                                list-of-coords-out))
+                                (stream-cons coords stream-of-coords-out)
+                                stream-of-coords-out))
                         ((not non-capture-allowed?)
-                            list-of-coords-out)
+                            stream-of-coords-out)
                         (else (loop
                                 (next-coords-in-direction coords direction)
                                 (1- max-distance)
-                                (cons coords list-of-coords-out)))))))
-        '()
-        directions))
+                                (stream-cons coords stream-of-coords-out)))))))
+        stream-null
+        (list->stream directions)))
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
-(define (main)
-    (define position
-        (decode-fen
-         "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-
-    (display-evaluation
-        position
-        (evaluate-position-at-ply
-            position
-            1.0))
-)
 ;(define (main)
-;    (for-each d
-;        (available-squares-along-directions
-;            (list 0 1)
-;            (decode-fen fen-initial)
-;            (list 'u)
-;            2
-;            #t
-;            #t)))
+;    (define position
+;        (decode-fen
+;         "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+;
+;    (display-evaluation
+;        position
+;        (evaluate-position-at-ply
+;            position
+;            1.0))
+;)
+(define (main)
+    (stream-for-each d
+        (available-squares-along-directions
+            (list 0 1)
+            (decode-fen fen-initial)
+            (list 'u)
+            2
+            #t
+            #t)))
 
 (if profile?
     (statprof
