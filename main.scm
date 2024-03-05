@@ -738,6 +738,15 @@
             position
             1.0))
 )
+;(define (main)
+;    (for-each d
+;        (available-squares-along-directions
+;            (list 0 1)
+;            (decode-fen fen-initial)
+;            (list 'u)
+;            2
+;            #t
+;            #t)))
 
 (if profile?
     (statprof
