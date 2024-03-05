@@ -8,6 +8,8 @@
 ;(use-modules (stream))
 (use-modules (statprof))
 
+; display-move-seq is quite slow
+
 (define profile? #f)
 
 (define caching? #f)
@@ -371,7 +373,7 @@
 
 (define (is-position-checkmate-inner? position)
     (and
-        (null? (available-moves-from-position position #t))
+        (stream-null? (available-moves-from-position position #t))
         (is-position-check? position)))
 
 (define (is-position-stalemate? position)
@@ -387,7 +389,7 @@
 
 (define (is-position-stalemate-inner? position)
     (and
-        (null? (available-moves-from-position position #t))
+        (stream-null? (available-moves-from-position position #t))
         (not (is-position-check? position))))
 
 (define-stream (available-squares-for-rook coords position)
