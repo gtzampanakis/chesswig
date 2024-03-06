@@ -10,6 +10,8 @@
 
 ; display-move-seq is quite slow
 
+(define positions-that-were-expanded-for-moves (make-hash-table))
+
 (define profile? #f)
 
 (define white-pieces '(R N B Q K P))
@@ -426,7 +428,7 @@
     (available-squares-along-directions
             coords position '(u ur r dr d dl l ul) 1 #t #t))
 
-(define (can-king-be-captured position)
+(define (can-king-be-captured? position)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (define king (if (eq? active-color 'w) 'k 'K))
@@ -491,7 +493,7 @@
             cadr
             (stream-filter
                 (lambda (move)
-                    (not (can-king-be-captured
+                    (not (can-king-be-captured?
                             (position-after-move position move))))
                 (stream-map
                     (lambda (sq)
@@ -511,7 +513,7 @@
             (display-move-seq position move-seq))))
 
 (define-stream (available-moves-from-position position check-for-checks)
-    ;(display-move-seq-from-position position)
+    (hash-set! positions-that-were-expanded-for-moves position 1)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (stream-fold
@@ -736,6 +738,15 @@
         stream-null
         (list->stream directions)))
 
+(define (display-position position)
+    (let* ((enc (encode-fen position)))
+        (display "position: ")
+        (display enc)
+        (display " ")
+        ;(display-move-seq-from-position position)
+        (newline)))
+
+
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
@@ -748,7 +759,17 @@
         position
         (evaluate-position-at-ply
             position
-            1.0)))
+            0.5)
+        )
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;(hash-for-each
+    ;    (lambda (position _) (display-position position))
+    ;    positions-that-were-expanded-for-moves)
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+
+    )
 
 (if profile?
     (statprof
