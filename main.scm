@@ -12,8 +12,6 @@
 
 (define profile? #f)
 
-(define caching? #f)
-
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
 (define pieces (append white-pieces black-pieces))
@@ -262,13 +260,7 @@
             (decode-castling (list-ref field-strings 2))
             (decode-en-passant (list-ref field-strings 3))
             (decode-halfmoves (list-ref field-strings 4))
-            (decode-fullmoves (list-ref field-strings 5))
-            'unset ; available-moves-from-position check-for-checks #t
-            'unset ; available-moves-from-position check-for-checks #f
-            'unset ; is-position-check?
-            'unset ; is-position-checkmate?
-            'unset ; is-position-stalemate?
-            )))
+            (decode-fullmoves (list-ref field-strings 5)))))
 
 (define (next-coords-in-direction coords direction)
     (let* (
@@ -328,25 +320,9 @@
         (list-ref position 2)
         (list-ref position 3)
         (list-ref position 4)
-        (list-ref position 5)
-        'unset
-        'unset
-        'unset
-        'unset
-        'unset))
+        (list-ref position 5)))
 
 (define (is-position-check? position-in)
-    (define ind 8)
-    (define cached (list-ref position-in ind))
-    (if (and caching? (not (eq? cached 'unset)))
-        cached
-        (let (
-                (result
-                    (is-position-check-inner? position-in)))
-            (list-set! position-in ind result)
-            result)))
-
-(define (is-position-check-inner? position-in)
     (define position (toggle-active-color position-in))
     (define placement (list-ref position 0))
     (define king-to-capture (if (eq? (list-ref position 1) 'w) 'k 'K)) 
@@ -364,33 +340,11 @@
             #f)))
 
 (define (is-position-checkmate? position)
-    (define ind 9)
-    (define cached (list-ref position ind))
-    (if (and caching? (not (eq? cached 'unset)))
-        cached
-        (let (
-                (result
-                    (is-position-checkmate-inner? position)))
-            (list-set! position ind result)
-            result)))
-
-(define (is-position-checkmate-inner? position)
     (and
         (stream-null? (available-moves-from-position position #t))
         (is-position-check? position)))
 
 (define (is-position-stalemate? position)
-    (define ind 10)
-    (define cached (list-ref position ind))
-    (if (and caching? (not (eq? cached 'unset)))
-        cached
-        (let (
-                (result
-                    (is-position-stalemate-inner? position)))
-            (list-set! position ind result)
-            result)))
-
-(define (is-position-stalemate-inner? position)
     (and
         (stream-null? (available-moves-from-position position #t))
         (not (is-position-check? position))))
@@ -485,18 +439,6 @@
         unchecked-for-checks))
 
 (define-stream (available-moves-from-position position check-for-checks)
-    (define ind (if check-for-checks 6 7))
-    (define cached (list-ref position ind))
-    (if (and caching? (not (eq? cached 'unset)))
-        cached
-        (let (
-                (result
-                    (available-moves-from-position-inner
-                                position check-for-checks)))
-            (list-set! position ind result)
-            result)))
-
-(define-stream (available-moves-from-position-inner position check-for-checks)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (stream-fold
