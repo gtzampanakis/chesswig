@@ -260,7 +260,72 @@
             (decode-castling (list-ref field-strings 2))
             (decode-en-passant (list-ref field-strings 3))
             (decode-halfmoves (list-ref field-strings 4))
-            (decode-fullmoves (list-ref field-strings 5)))))
+            (decode-fullmoves (list-ref field-strings 5))
+            '() ; last position
+            '() ; last move
+            )))
+
+(define (inc-char char)
+    (car
+        (string->list
+            (number->string
+                (1+
+                    (string->number
+                        (string char)))))))
+
+(define (symbol->chars sym)
+    (string->list (symbol->string sym)))
+
+(define (encode-fen position)
+    (define placement (list-ref position 0))
+    (define active-color (list-ref position 1))
+    (define castling (list-ref position 2))
+    (define en-passant (list-ref position 3))
+    (define halfmoves (list-ref position 4))
+    (define fullmoves (list-ref position 5))
+    (define placement-chars
+        (let loop ((placement placement) (result '()))
+            (if (null? placement)
+                (reverse (cdr result)) ; the cdr is to drop the trailing #\/
+                (loop
+                    (drop placement 8)
+                    (append
+                        result
+                        (list #\/)
+                        (fold
+                            (lambda (piece previous)
+                                (cond
+                                    ((eq? piece '())
+                                        (cond
+                                            ((null? previous)
+                                                (cons #\1 previous))
+                                            (else
+                                                (case (car previous)
+                                                   ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8)
+                                                    (cons
+                                                        (inc-char (car previous))
+                                                        (cdr previous)))
+                                                   (else (cons #\1 previous))))))
+                                    (else (append (symbol->chars piece) previous))))
+                            '()
+                            (take placement 8)))))))
+    (apply
+        string
+        (append
+            placement-chars
+            (list #\ )
+            (symbol->chars active-color)
+            (list #\ )
+            (apply
+                append
+                (map symbol->chars castling))
+            (list #\ )
+            (string->list
+                (if (null? en-passant) "-" (square-to-alg en-passant)))
+            (list #\ )
+            (string->list (number->string halfmoves))
+            (list #\ )
+            (string->list (number->string fullmoves)))))
 
 (define (next-coords-in-direction coords direction)
     (let* (
@@ -314,13 +379,9 @@
 
 (define (toggle-active-color position)
     (define active-color (list-ref position 1))
-    (list
-        (list-ref position 0)
-        (if (eq? active-color 'w) 'b 'w)
-        (list-ref position 2)
-        (list-ref position 3)
-        (list-ref position 4)
-        (list-ref position 5)))
+    (define new-position (list-copy position))
+    (list-set! new-position 1 (if (eq? active-color 'w) 'b 'w))
+    new-position)
 
 (define (is-position-check? position-in)
     (define position (toggle-active-color position-in))
@@ -438,7 +499,19 @@
                     unchecked-for-checks)))
         unchecked-for-checks))
 
+(define (display-move-seq-from-position position)
+    (match
+        (let loop ((position position) (move-seq '()))
+            (define last-position (list-ref position 6))
+            (define last-move (list-ref position 7))
+            (if (null? last-position)
+                (list position move-seq)
+                (loop last-position (cons last-move move-seq))))
+        ((position move-seq)
+            (display-move-seq position move-seq))))
+
 (define-stream (available-moves-from-position position check-for-checks)
+    ;(display-move-seq-from-position position)
     (define placement (list-ref position 0))
     (define active-color (list-ref position 1))
     (stream-fold
@@ -495,11 +568,8 @@
         (+
             (list-ref position 5)
             (if (eq? (list-ref position 1) 'b) 1 0))
-        'unset
-        'unset
-        'unset
-        'unset
-        'unset))
+        position
+        move))
 
 (define (piece-base-value piece)
     (case piece
