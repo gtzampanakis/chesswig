@@ -219,9 +219,12 @@
             '()
             (string->list rank-string))))
 
-(define (piece-at-coords placement coords)
+(define (placement-index coords)
     (let ((f (car coords)) (r (cadr coords)))
-        (list-ref placement (+ (* r 8) f))))
+        (+ (* r 8) f)))
+
+(define (piece-at-coords placement coords)
+    (list-ref placement (placement-index coords)))
 
 (define (decode-placement-data placement-data-string)
     (apply
@@ -536,19 +539,9 @@
         (or
             (eq? piece-moving 'P)
             (eq? piece-moving 'p)))
-    (define new-placement
-        (map
-            (lambda (piece f r)
-                (define coords (list f r))
-                (cond
-                    ((equal? coords coords-from)
-                        '())
-                    ((equal? coords coords-to)
-                        piece-moving)
-                    (else piece)))
-            placement
-            file-coords
-            rank-coords))
+    (define new-placement (list-copy placement))
+    (list-set! new-placement (placement-index coords-from) '())
+    (list-set! new-placement (placement-index coords-to) piece-moving)
     (list
         new-placement
         (toggled-color (list-ref position 1))
@@ -743,12 +736,11 @@
         position
         (evaluate-position-at-ply
             position
-            1.0))
-)
+            1.0)))
 
 (if profile?
     (statprof
         main
-        #:display-style 'flat
-        #:loop 1)
+        #:display-style 'tree
+        #:loop 10)
     (main))
