@@ -51,8 +51,6 @@
 (define-memoization-syntax define-stream-memoized stream-lambda)
 
 (define (char->symbol char)
-  (args-to-key-proc
-    (lambda (char) char))
   (string->symbol (string char)))
 
 (define (alg-to-square alg)
@@ -507,6 +505,9 @@
       (display-move-seq position move-seq))))
 
 (define-stream-memoized (available-moves-from-position position check-for-checks)
+  (args-to-key-proc
+    (lambda (position check-for-checks)
+      (list (encode-fen position) check-for-checks)))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
