@@ -20,43 +20,23 @@
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
 
-(define-public (memoized-proc proc . args)
-  (define max-cache-size 50000)
-  (define key-to-cache-sublist (make-hash-table))
-  (define cache '())
-  (define cache-size 0)
-  (define cache-last-pair '())
+(define-public (memoized-proc args-to-key-proc proc)
+  (define cache (make-hash-table))
   (lambda args
-    (define cache-sublist (hash-ref key-to-cache-sublist args))
-    (if (eq? cache-sublist #f)
-      (let* (
-          (proc-result (apply proc args))
-          (cache-entry (cons args proc-result)))
-        ; cache grows from the end so we can easily drop the oldest records
-        ; from the front
-        (if (null? cache)
-          (begin
-            (set! cache (list cache-entry))
-            (set! cache-last-pair cache))
-          (begin
-            (set-cdr! cache-last-pair (list cache-entry))
-            (set! cache-last-pair (cdr cache-last-pair))))
-        (set! cache-size (1+ cache-size))
-        (when (> cache-size max-cache-size)
-          (let ((args-to-forget (caar cache)))
-            (set! cache (cdr cache))
-            (hash-remove! key-to-cache-sublist args-to-forget)
-            (set! cache-size (1- cache-size))))
-        (hash-set! key-to-cache-sublist args cache-last-pair)
-        (cdr cache-entry))
-      (let ((cache-entry (car cache-sublist))) (cdr cache-entry)))))
+    (define key (apply args-to-key-proc args))
+    (define cached-result (hash-ref cache key 'cache:not-exists))
+    (if (eq? cached-result 'cache:not-exists)
+      (let ((result (apply proc args)))
+        (hash-set! cache key result)
+        result)
+      cached-result)))
 
 (define-syntax define-memoized
   (syntax-rules ()
-    ((_ (name . args) expr expr* ...)
-      (define name
-        (memoized-proc
-          (lambda args expr expr* ...))))))
+    ((_ (define name proc))
+      (memoized-proc
+        (lambda (x) x)
+        proc))))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -759,7 +739,7 @@
   ;  position
     (evaluate-position-at-ply
       position
-      1.0)
+      0.5)
     ;)
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

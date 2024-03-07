@@ -83,10 +83,10 @@
         (loop (cdr ls) (1+ r))))))
 
 (define-public (take-n-or-fewer ls n)
-    (cond
-        ((null? ls) '())
-        ((= n 0) '())
-        (else
-            (cons
-                (car ls)
-                (take-n-or-fewer (cdr ls) (1- n))))))
+  (cond
+    ((null? ls) '())
+    ((= n 0) '())
+    (else
+      (cons
+        (car ls)
+        (take-n-or-fewer (cdr ls) (1- n))))))
