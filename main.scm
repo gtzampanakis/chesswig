@@ -31,14 +31,28 @@
         result)
       cached-result)))
 
-(define-syntax define-memoized
+(define-syntax define-memoization-syntax
   (syntax-rules ()
-    ((_ (define name proc))
-      (memoized-proc
-        (lambda (x) x)
-        proc))))
+    ((_ s1 s2)
+      (define-syntax s1
+        (syntax-rules (args-to-key-proc)
+          ((_ (name . args) (args-to-key-proc p) expr expr* (... ...))
+            (define name
+              (memoized-proc p
+                (s2 args
+                  expr expr* (... ...)))))
+          ((_ (name . args) expr expr* (... ...))
+            (s1
+              (name . args)
+              (args-to-key-proc (lambda a a))
+              expr expr* (... ...))))))))
+
+(define-memoization-syntax define-memoized lambda)
+(define-memoization-syntax define-stream-memoized stream-lambda)
 
 (define (char->symbol char)
+  (args-to-key-proc
+    (lambda (char) char))
   (string->symbol (string char)))
 
 (define (alg-to-square alg)
@@ -492,7 +506,7 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define-stream (available-moves-from-position position check-for-checks)
+(define-stream-memoized (available-moves-from-position position check-for-checks)
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
@@ -735,12 +749,12 @@
     (decode-fen
      "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
 
-  ;(display-evaluation
-  ;  position
+  (display-evaluation
+    position
     (evaluate-position-at-ply
       position
       0.5)
-    ;)
+    )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;(hash-for-each
