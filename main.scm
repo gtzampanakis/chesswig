@@ -504,10 +504,10 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define-stream-memoized (available-moves-from-position position check-for-checks)
-  (args-to-key-proc
-    (lambda (position check-for-checks)
-      (list (encode-fen position) check-for-checks)))
+(define-stream (available-moves-from-position position check-for-checks)
+  ;(args-to-key-proc
+  ;  (lambda (position check-for-checks)
+  ;    (list (encode-fen position) check-for-checks)))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
@@ -745,30 +745,51 @@
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
+;(define (main)
+;  (define position
+;    (decode-fen
+;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+;
+;  ;(display-evaluation
+;  ;  position
+;    (evaluate-position-at-ply
+;      position
+;      1.0)
+;    ;)
+;
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(hash-for-each
+;  ;  (lambda (position _) (display-position position))
+;  ;  positions-that-were-expanded-for-moves)
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;
+;  )
+
+(define (time)
+  (let ((t (gettimeofday)))
+    (+ (car t) (/ (cdr t) 1000000))))
+
 (define (main)
-  (define position
-    (decode-fen
-     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-
-  (display-evaluation
-    position
-    (evaluate-position-at-ply
-      position
-      0.5)
-    )
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(hash-for-each
-  ;  (lambda (position _) (display-position position))
-  ;  positions-that-were-expanded-for-moves)
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-
-  )
+  (define position (decode-fen "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+  (define loops 50)
+  (define t0 (time))
+  (let outer-loop ((i loops))
+    (when (> i 0)
+      (stream->list
+        (available-moves-from-position position #t))
+      (outer-loop (1- i))))
+  (define t1 (time))
+  (display (* 1000.0 (/ (- t1 t0) loops)))
+  (display " ms per loop, ")
+  (display loops)
+  (display " loops")
+  (newline)
+)
 
 (if profile?
   (statprof
     main
     #:display-style 'tree
-    #:loop 10)
+    #:loop 4)
   (main))
