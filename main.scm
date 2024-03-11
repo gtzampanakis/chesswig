@@ -4,11 +4,9 @@
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
-(use-modules (srfi srfi-41))
-;(use-modules (stream))
+;(use-modules (srfi srfi-41))
+(use-modules (stream))
 (use-modules (statprof))
-
-; display-move-seq is quite slow
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
 
@@ -750,12 +748,12 @@
 ;    (decode-fen
 ;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
 ;
-;  ;(display-evaluation
-;  ;  position
+;  (display-evaluation
+;    position
 ;    (evaluate-position-at-ply
 ;      position
-;      1.0)
-;    ;)
+;      1.5)
+;    )
 ;
 ;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;  ;(hash-for-each
@@ -780,6 +778,7 @@
         (available-moves-from-position position #t))
       (outer-loop (1- i))))
   (define t1 (time))
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
   (display (* 1000.0 (/ (- t1 t0) loops)))
   (display " ms per loop, ")
   (display loops)
