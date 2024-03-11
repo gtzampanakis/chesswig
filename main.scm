@@ -4,13 +4,13 @@
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
-;(use-modules (srfi srfi-41))
-(use-modules (stream))
+(use-modules (srfi srfi-41))
+;(use-modules (stream))
 (use-modules (statprof))
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
 
-(define profile? #t)
+(define profile? #f)
 
 (define white-pieces '(R N B Q K P))
 (define black-pieces '(r n b q k p))
@@ -509,13 +509,13 @@
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
-  (stream-fold
-    (lambda (previous piece-f-r)
-      (define piece (car piece-f-r))
-      (define f (cadr piece-f-r))
-      (define r (caddr piece-f-r))
-      (define coords-from (list f r))
-      (stream-append
+  (stream-concat
+    (stream-map
+      (lambda (piece-f-r)
+        (define piece (car piece-f-r))
+        (define f (cadr piece-f-r))
+        (define r (caddr piece-f-r))
+        (define coords-from (list f r))
         (stream-map
           (lambda (coords-to)
             (list coords-from coords-to))
@@ -525,14 +525,12 @@
               (and (eq? active-color 'b) (black-piece? piece)))
             (available-squares-from-coords
               coords-from position dont-allow-exposed-king)
-            stream-null))
-        previous))
-    stream-null
-    (list->stream
-      (zip
-        placement
-        file-coords
-        rank-coords))))
+            stream-null)))
+      (list->stream
+        (zip
+          placement
+          file-coords
+          rank-coords)))))
 
 (define (toggled-color color)
   (case color
@@ -703,9 +701,9 @@
     color
     (if (member (piece-at-coords placement coords) white-pieces)
       'w 'b))
-  (stream-fold
-    (lambda (previous direction)
-      (stream-append previous
+  (stream-concat
+    (stream-map
+      (lambda (direction)
         (let loop (
             (coords (next-coords-in-direction coords direction))
             (max-distance max-distance))
@@ -727,9 +725,8 @@
                 coords
                 (loop
                   (next-coords-in-direction coords direction)
-                  (1- max-distance))))))))
-    stream-null
-    (list->stream directions)))
+                  (1- max-distance)))))))
+      (list->stream directions))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
