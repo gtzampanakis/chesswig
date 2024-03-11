@@ -467,7 +467,7 @@
         (next-coords-in-direction coords direction))
       (list->stream knight-directions))))
 
-(define-stream (available-squares-from-coords coords position check-for-checks)
+(define-stream (available-squares-from-coords coords position dont-allow-exposed-king)
   (define placement (list-ref position 0))
   (define unchecked-for-checks
     (case (piece-at-coords placement coords)
@@ -478,7 +478,7 @@
       ((Q q) (available-squares-for-queen coords position))
       ((R r) (available-squares-for-rook coords position))
       ((K k) (available-squares-for-king coords position))))
-  (if check-for-checks
+  (if dont-allow-exposed-king
     (stream-map
       cadr
       (stream-filter
@@ -502,10 +502,10 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define-stream (available-moves-from-position position check-for-checks)
+(define-stream (available-moves-from-position position dont-allow-exposed-king)
   ;(args-to-key-proc
-  ;  (lambda (position check-for-checks)
-  ;    (list (encode-fen position) check-for-checks)))
+  ;  (lambda (position dont-allow-exposed-king)
+  ;    (list (encode-fen position) dont-allow-exposed-king)))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
@@ -524,7 +524,7 @@
               (and (eq? active-color 'w) (white-piece? piece))
               (and (eq? active-color 'b) (black-piece? piece)))
             (available-squares-from-coords
-              coords-from position check-for-checks)
+              coords-from position dont-allow-exposed-king)
             stream-null))
         previous))
     stream-null
@@ -743,52 +743,52 @@
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 
-;(define (main)
-;  (define position
-;    (decode-fen
-;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-;
-;  (display-evaluation
-;    position
-;    (evaluate-position-at-ply
-;      position
-;      1.5)
-;    )
-;
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(hash-for-each
-;  ;  (lambda (position _) (display-position position))
-;  ;  positions-that-were-expanded-for-moves)
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;
-;  )
-
-(define (time)
-  (let ((t (gettimeofday)))
-    (+ (car t) (/ (cdr t) 1000000))))
-
 (define (main)
-  (define position (decode-fen "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-  (define loops 50)
-  (define t0 (time))
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (stream->list
-        (available-moves-from-position position #t))
-      (outer-loop (1- i))))
-  (define t1 (time))
+  (define position
+    (decode-fen
+     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+
+  ;(display-evaluation
+  ;  position
+    (evaluate-position-at-ply
+      position
+      1.0)
+  ;  )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(hash-for-each
+  ;  (lambda (position _) (display-position position))
+  ;  positions-that-were-expanded-for-moves)
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+
+  )
+
+;(define (time)
+;  (let ((t (gettimeofday)))
+;    (+ (car t) (/ (cdr t) 1000000))))
+;
+;(define (main)
+;  (define position (decode-fen "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+;  (define loops 50)
+;  (define t0 (time))
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (stream->list
+;        (available-moves-from-position position #t))
+;      (outer-loop (1- i))))
+;  (define t1 (time))
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
 
 (if profile?
   (statprof
     main
     #:display-style 'tree
-    #:loop 4)
+    #:loop 8)
   (main))
