@@ -12,11 +12,55 @@
 
 (define profile? #f)
 
-(define white-pieces '(R N B Q K P))
-(define black-pieces '(r n b q k p))
+(define E 0)
+(define R 2)
+(define N 3)
+(define B 4)
+(define Q 5)
+(define K 6)
+(define P 1)
+(define r 10)
+(define n 11)
+(define b 12)
+(define q 13)
+(define k 14)
+(define p 9)
+
+(define white-pieces (list R N B Q K P))
+(define black-pieces (list r n b q k p))
 (define pieces (append white-pieces black-pieces))
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
+
+(define (char->piece char)
+  (case char
+    ((#\R) R)
+    ((#\N) N)
+    ((#\B) B)
+    ((#\Q) Q)
+    ((#\K) K)
+    ((#\P) P)
+    ((#\r) r)
+    ((#\n) n)
+    ((#\b) b)
+    ((#\q) q)
+    ((#\k) k)
+    ((#\p) p)))
+
+(define (piece->char piece)
+  (cond
+    ((= piece R) #\R)
+    ((= piece N) #\N)
+    ((= piece B) #\B)
+    ((= piece Q) #\Q)
+    ((= piece K) #\K)
+    ((= piece P) #\P)
+    ((= piece r) #\r)
+    ((= piece n) #\n)
+    ((= piece b) #\b)
+    ((= piece q) #\q)
+    ((= piece k) #\k)
+    ((= piece p) #\p)))
 
 (define-public (memoized-proc args-to-key-proc proc)
   (define cache (make-hash-table))
@@ -200,11 +244,11 @@
         (case char
           ((#\r #\n #\b #\q #\k #\p #\R #\N #\B #\Q #\K #\P)
             (cons
-              (string->symbol (string char))
+              (char->piece char)
               current-result))
           ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8)
             (append
-              (make-list (string->number (string char)) '())
+              (make-list (string->number (string char)) E)
               current-result))))
       '()
       (string->list rank-string))))
@@ -214,11 +258,10 @@
     (+ (* r 8) f)))
 
 (define (piece-at-coords placement coords)
-  (list-ref placement (placement-index coords)))
+  (vector-ref placement (placement-index coords)))
 
 (define (decode-placement-data placement-data-string)
-  (apply
-    append
+  (list->typed-array 'u8 2
     (reverse
       (let ((rank-strings (string-split placement-data-string #\/)))
         (map decode-rank rank-strings)))))
@@ -276,18 +319,18 @@
   (define halfmoves (list-ref position 4))
   (define fullmoves (list-ref position 5))
   (define placement-chars
-    (let loop ((placement placement) (result '()))
-      (if (null? placement)
-        (reverse (cdr result)) ; the cdr is to drop the trailing #\/
+    (let loop ((r 7) (result '()))
+      (if (= r -1)
+        result
         (loop
-          (drop placement 8)
+          (1- r)
           (append
             result
             (list #\/)
             (fold
               (lambda (piece previous)
                 (cond
-                  ((eq? piece '())
+                  ((= piece E)
                     (cond
                       ((null? previous)
                         (cons #\1 previous))
@@ -298,9 +341,9 @@
                             (inc-char (car previous))
                             (cdr previous)))
                            (else (cons #\1 previous))))))
-                  (else (append (symbol->chars piece) previous))))
+                  (else (cons (piece->char piece) previous))))
               '()
-              (take placement 8)))))))
+              (array->list (array-cell-ref placement r))))))))
   (apply
     string
     (append
@@ -766,27 +809,32 @@
   (let ((t (gettimeofday)))
     (+ (car t) (/ (cdr t) 1000000))))
 
+;(define (main)
+;  (define loops 200)
+;  (define t0 (time))
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (stream->list
+;        (available-moves-from-position position #t))
+;      (outer-loop (1- i))))
+;  (define t1 (time))
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
+
 (define (main)
   (define position (decode-fen fen-initial))
-  (define loops 200)
-  (define t0 (time))
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (stream->list
-        (available-moves-from-position position #t))
-      (outer-loop (1- i))))
-  (define t1 (time))
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+  (d (encode-fen position))
+  (stream-for-each d
+    (available-moves-from-position position #t)))
 
 (if profile?
   (statprof
     main
-    #:display-style 'flat
-    #:loop 8)
+    #:display-style 'tree
+    #:loop 24)
   (main))
