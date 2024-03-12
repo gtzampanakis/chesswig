@@ -768,7 +768,7 @@
 
 (define (main)
   (define position (decode-fen fen-initial))
-  (define loops 50)
+  (define loops 200)
   (define t0 (time))
   (let outer-loop ((i loops))
     (when (> i 0)
