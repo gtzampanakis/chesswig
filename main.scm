@@ -110,7 +110,7 @@
 (define-stream (stream-map-over-placement proc placement)
   (stream-map
     (lambda (coords)
-      (proc (array-ref placement (car coords) (cadr coords)) coords))
+      (proc (array-ref placement (cadr coords) (car coords)) coords))
     (stream-placement-indices)))
 
 (define (char->symbol char)
@@ -177,16 +177,16 @@
   (define capture? (piece-at-coords? placement sq-to))
   (define capture-str (if capture? "x" ""))
   (define piece-moving-str
-    (case piece-moving
-      ((P p)
+    (cond
+      ((or (= piece-moving P) (= piece-moving p))
         (if capture?
           (file-to-alg (car sq-from))
           ""))
-      ((N n) "N")
-      ((B b) "B")
-      ((Q q) "Q")
-      ((R r) "R")
-      ((K k) "K")))
+      ((or (= piece-moving N) (= piece-moving n)) "N")
+      ((or (= piece-moving B) (= piece-moving b)) "B")
+      ((or (= piece-moving Q) (= piece-moving q)) "Q")
+      ((or (= piece-moving R) (= piece-moving r)) "R")
+      ((or (= piece-moving K) (= piece-moving k)) "K")))
   (define rank-str
     (call/ec
       (lambda (return)
@@ -275,8 +275,7 @@
       (string->list rank-string))))
 
 (define (piece-at-coords placement coords)
-  ;(vector-ref placement (placement-index coords)))
-  (array-ref placement (car coords) (cadr coords)))
+  (array-ref placement (cadr coords) (car coords)))
 
 (define (decode-placement-data placement-data-string)
   (list->typed-array 'u8 2
@@ -533,7 +532,7 @@
   (define unchecked-for-checks
     (let ((piece (piece-at-coords placement coords)))
       (cond
-        ((= piece E) '())
+        ((= piece E) stream-null)
         ((or (= piece P) (= piece p)) (available-squares-for-pawn coords position))
         ((or (= piece N) (= piece n)) (available-squares-for-knight coords position))
         ((or (= piece B) (= piece b)) (available-squares-for-bishop coords position))
@@ -565,9 +564,6 @@
       (display-move-seq position move-seq))))
 
 (define-stream (available-moves-from-position position dont-allow-exposed-king)
-  ;(args-to-key-proc
-  ;  (lambda (position dont-allow-exposed-king)
-  ;    (list (encode-fen position) dont-allow-exposed-king)))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
@@ -582,7 +578,7 @@
               (and (eq? active-color 'w) (white-piece? piece))
               (and (eq? active-color 'b) (black-piece? piece)))
             (available-squares-from-coords
-              coords-from position dont-allow-exposed-king)
+                coords-from position dont-allow-exposed-king)
             stream-null)))
       placement)))
 
@@ -602,8 +598,8 @@
       (eq? piece-moving 'P)
       (eq? piece-moving 'p)))
   (define new-placement (array-copy placement))
-  (array-set! new-placement (cadr coords-from) (car coords-from) E)
-  (array-set! new-placement (cadr coords-to) (car coords-to) piece-moving)
+  (array-set! new-placement E (cadr coords-from) (car coords-from))
+  (array-set! new-placement piece-moving (cadr coords-to) (car coords-to))
   (list
     new-placement
     (toggled-color (list-ref position 1))
@@ -619,20 +615,20 @@
     move))
 
 (define (piece-base-value piece)
-  (case piece
-    ((()) 0)
-    ((P) +1)
-    ((p) -1)
-    ((N) +3)
-    ((n) -3)
-    ((B) +3)
-    ((b) -3)
-    ((Q) +9)
-    ((q) -9)
-    ((R) +5)
-    ((r) -5)
-    ((K) +999999)
-    ((k) -999999)))
+  (cond
+    ((= piece E) 0)
+    ((= piece P) +1)
+    ((= piece p) -1)
+    ((= piece N) +3)
+    ((= piece n) -3)
+    ((= piece B) +3)
+    ((= piece b) -3)
+    ((= piece Q) +9)
+    ((= piece q) -9)
+    ((= piece R) +5)
+    ((= piece r) -5)
+    ((= piece K) +999999)
+    ((= piece k) -999999)))
 
 (define (evaluate-position-static position)
   (define active-color (list-ref position 1))
@@ -822,7 +818,7 @@
 
 (define (main)
   (define position (decode-fen fen-initial))
-  (define loops 200)
+  (define loops 400)
   (define t0 (time))
   (let outer-loop ((i loops))
     (when (> i 0)
