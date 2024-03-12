@@ -9,6 +9,7 @@
 (export
   stream-null
   stream-null?
+  stream-concat
   stream-cons
   stream-lambda
   define-stream
@@ -125,3 +126,16 @@
       (stream-cons
         (car args)
         (loop (cdr args))))))
+
+(define-stream (stream-concat stream-of-streams)
+  (let loop-1 ((stream-of-streams stream-of-streams))
+    (let ((sp-1 (stream-of-streams)))
+      (if (eq? sp-1 stream-null-obj)
+        stream-null
+        (let loop-2 ((s ((car sp-1))))
+          (let ((sp-2 (s)))
+            (if (eq? sp-2 stream-null-obj)
+              (loop-1 ((cdr sp-1)))
+              (stream-cons
+                ((car sp-2))
+                (loop-2 ((cdr sp-2)))))))))))
