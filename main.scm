@@ -113,6 +113,12 @@
       (proc (array-ref placement (cadr coords) (car coords)) coords))
     (stream-placement-indices)))
 
+(define (stream-for-each-over-placement proc placement)
+  (stream-for-each
+    (lambda (coords)
+      (proc (array-ref placement (cadr coords) (car coords)) coords))
+    (stream-placement-indices)))
+
 (define (char->symbol char)
   (string->symbol (string char)))
 
@@ -190,46 +196,42 @@
   (define rank-str
     (call/ec
       (lambda (return)
-        (for-each
-          (lambda (piece f r)
+        (stream-for-each-over-placement
+          (lambda (piece coords)
             (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
               (when (eq? piece piece-moving)
-                (when (= f (car sq-from))
+                (when (= (car coords) (car sq-from))
                   ; When same type of piece on same file.
-                  (when (not (equal? (list f r) sq-from))
-                    (for-each
+                  (when (not (equal? coords sq-from))
+                    (stream-for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (return
                             (rank-to-alg
                               (cadr sq-from)))))
                       (available-squares-from-coords
-                         (list f r) position #t)))))))
-          placement
-          file-coords
-          rank-coords)
+                         coords position #t)))))))
+          placement)
         "")))
   (define file-str
     (call/ec
       (lambda (return)
-        (for-each
-          (lambda (piece f r)
+        (stream-for-each-over-placement
+          (lambda (piece coords)
             (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
               (when (eq? piece piece-moving)
-                (when (not (= f (car sq-from)))
+                (when (not (= (car coords) (car sq-from)))
                   ; When same type of piece on different file.
-                  (when (not (equal? (list f r) sq-from))
-                    (for-each
+                  (when (not (equal? coords sq-from))
+                    (stream-for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (return
                             (file-to-alg
                               (car sq-from)))))
                       (available-squares-from-coords
-                         (list f r) position #t)))))))
-          placement
-          file-coords
-          rank-coords)
+                         coords position #t)))))))
+          placement)
         "")))
   (define next-position (position-after-move position move))
   (define check-or-checkmate-str
@@ -641,7 +643,13 @@
       0)
     (else
       (let ((placement (list-ref position 0)))
-        (sum (map piece-base-value placement))))))
+        (stream-fold
+          +
+          0
+          (stream-map-over-placement
+            (lambda (piece coords)
+              (piece-base-value piece))
+            placement))))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
@@ -791,48 +799,48 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 
-;(define (main)
-;  (define position
-;    (decode-fen
-;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-;
-;  (display-evaluation
-;    position
-;    (evaluate-position-at-ply
-;      position
-;      1.0)
-;    )
-;
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(hash-for-each
-;  ;  (lambda (position _) (display-position position))
-;  ;  positions-that-were-expanded-for-moves)
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;
-;  )
-
-(define (time)
-  (let ((t (gettimeofday)))
-    (+ (car t) (/ (cdr t) 1000000))))
-
 (define (main)
-  (define position (decode-fen fen-initial))
-  (define loops 400)
-  (define t0 (time))
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (stream->list
-        (available-moves-from-position position #t))
-      (outer-loop (1- i))))
-  (define t1 (time))
+  (define position
+    (decode-fen
+     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+
+  (display-evaluation
+    position
+    (evaluate-position-at-ply
+      position
+      1.0)
+    )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(hash-for-each
+  ;  (lambda (position _) (display-position position))
+  ;  positions-that-were-expanded-for-moves)
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+
+  )
+
+;(define (time)
+;  (let ((t (gettimeofday)))
+;    (+ (car t) (/ (cdr t) 1000000))))
+;
+;(define (main)
+;  (define position (decode-fen fen-initial))
+;  (define loops 400)
+;  (define t0 (time))
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (stream->list
+;        (available-moves-from-position position #t))
+;      (outer-loop (1- i))))
+;  (define t1 (time))
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
 
 ;(define (main)
 ;  (define position (decode-fen fen-initial))
