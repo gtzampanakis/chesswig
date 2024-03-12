@@ -429,7 +429,7 @@
       ((b) white-pieces))))
 
 (define (piece-at-coords? placement coords)
-  (not (null? (piece-at-coords placement coords))))
+  (not (= (piece-at-coords placement coords) E)))
 
 (define (toggle-active-color position)
   (define active-color (list-ref position 1))
