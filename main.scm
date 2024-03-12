@@ -1,3 +1,4 @@
+(use-modules (ice-9 arrays))
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
@@ -91,6 +92,26 @@
 
 (define-memoization-syntax define-memoized lambda)
 (define-memoization-syntax define-stream-memoized stream-lambda)
+
+(define-stream (stream-placement-indices)
+  (let loop ((f 0) (r 0))
+    (if (> r 7)
+      stream-null
+      (stream-cons
+        (list f r)
+        (loop
+          (if (= f 7)
+            0
+            (1+ f))
+          (if (= f 7)
+            (1+ r)
+            r))))))
+
+(define-stream (stream-map-over-placement proc placement)
+  (stream-map
+    (lambda (coords)
+      (proc (array-ref placement (car coords) (cadr coords)) coords))
+    (stream-placement-indices)))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -253,12 +274,9 @@
       '()
       (string->list rank-string))))
 
-(define (placement-index coords)
-  (let ((f (car coords)) (r (cadr coords)))
-    (+ (* r 8) f)))
-
 (define (piece-at-coords placement coords)
-  (vector-ref placement (placement-index coords)))
+  ;(vector-ref placement (placement-index coords)))
+  (array-ref placement (car coords) (cadr coords)))
 
 (define (decode-placement-data placement-data-string)
   (list->typed-array 'u8 2
@@ -513,14 +531,15 @@
 (define-stream (available-squares-from-coords coords position dont-allow-exposed-king)
   (define placement (list-ref position 0))
   (define unchecked-for-checks
-    (case (piece-at-coords placement coords)
-      ((()) '())
-      ((P p) (available-squares-for-pawn coords position))
-      ((N n) (available-squares-for-knight coords position))
-      ((B b) (available-squares-for-bishop coords position))
-      ((Q q) (available-squares-for-queen coords position))
-      ((R r) (available-squares-for-rook coords position))
-      ((K k) (available-squares-for-king coords position))))
+    (let ((piece (piece-at-coords placement coords)))
+      (cond
+        ((= piece E) '())
+        ((or (= piece P) (= piece p)) (available-squares-for-pawn coords position))
+        ((or (= piece N) (= piece n)) (available-squares-for-knight coords position))
+        ((or (= piece B) (= piece b)) (available-squares-for-bishop coords position))
+        ((or (= piece Q) (= piece q)) (available-squares-for-queen coords position))
+        ((or (= piece R) (= piece r)) (available-squares-for-rook coords position))
+        ((or (= piece K) (= piece k)) (available-squares-for-king coords position)))))
   (if dont-allow-exposed-king
     (stream-map
       cadr
@@ -553,12 +572,8 @@
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
   (stream-concat
-    (stream-map
-      (lambda (piece-f-r)
-        (define piece (car piece-f-r))
-        (define f (cadr piece-f-r))
-        (define r (caddr piece-f-r))
-        (define coords-from (list f r))
+    (stream-map-over-placement
+      (lambda (piece coords-from)
         (stream-map
           (lambda (coords-to)
             (list coords-from coords-to))
@@ -569,11 +584,7 @@
             (available-squares-from-coords
               coords-from position dont-allow-exposed-king)
             stream-null)))
-      (list->stream
-        (zip
-          placement
-          file-coords
-          rank-coords)))))
+      placement)))
 
 (define (toggled-color color)
   (case color
@@ -590,9 +601,9 @@
     (or
       (eq? piece-moving 'P)
       (eq? piece-moving 'p)))
-  (define new-placement (list-copy placement))
-  (list-set! new-placement (placement-index coords-from) '())
-  (list-set! new-placement (placement-index coords-to) piece-moving)
+  (define new-placement (array-copy placement))
+  (array-set! new-placement (cadr coords-from) (car coords-from) E)
+  (array-set! new-placement (cadr coords-to) (car coords-to) piece-moving)
   (list
     new-placement
     (toggled-color (list-ref position 1))
@@ -809,28 +820,29 @@
   (let ((t (gettimeofday)))
     (+ (car t) (/ (cdr t) 1000000))))
 
-;(define (main)
-;  (define loops 200)
-;  (define t0 (time))
-;  (let outer-loop ((i loops))
-;    (when (> i 0)
-;      (stream->list
-;        (available-moves-from-position position #t))
-;      (outer-loop (1- i))))
-;  (define t1 (time))
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;  (display (* 1000.0 (/ (- t1 t0) loops)))
-;  (display " ms per loop, ")
-;  (display loops)
-;  (display " loops")
-;  (newline)
-;)
-
 (define (main)
   (define position (decode-fen fen-initial))
-  (d (encode-fen position))
-  (stream-for-each d
-    (available-moves-from-position position #t)))
+  (define loops 200)
+  (define t0 (time))
+  (let outer-loop ((i loops))
+    (when (> i 0)
+      (stream->list
+        (available-moves-from-position position #t))
+      (outer-loop (1- i))))
+  (define t1 (time))
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+  (display (* 1000.0 (/ (- t1 t0) loops)))
+  (display " ms per loop, ")
+  (display loops)
+  (display " loops")
+  (newline)
+)
+
+;(define (main)
+;  (define position (decode-fen fen-initial))
+;  (d (encode-fen position))
+;  (stream-for-each d
+;    (available-moves-from-position position #t)))
 
 (if profile?
   (statprof
