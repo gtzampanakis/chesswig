@@ -343,33 +343,36 @@
           (append
             result
             (list #\/)
-            (fold
-              (lambda (piece previous)
-                (cond
-                  ((= piece E)
-                    (cond
-                      ((null? previous)
-                        (cons #\1 previous))
-                      (else
-                        (case (car previous)
-                           ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8)
-                          (cons
-                            (inc-char (car previous))
-                            (cdr previous)))
-                           (else (cons #\1 previous))))))
-                  (else (cons (piece->char piece) previous))))
-              '()
-              (array->list (array-cell-ref placement r))))))))
+            (reverse
+              (fold
+                (lambda (piece previous)
+                  (cond
+                    ((= piece E)
+                      (cond
+                        ((null? previous)
+                          (cons #\1 previous))
+                        (else
+                          (case (car previous)
+                             ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8)
+                            (cons
+                              (inc-char (car previous))
+                              (cdr previous)))
+                             (else (cons #\1 previous))))))
+                    (else (cons (piece->char piece) previous))))
+                '()
+                (array->list (array-cell-ref placement r)))))))))
   (apply
     string
     (append
-      placement-chars
+      (cdr placement-chars) ; The cdr is to remove the leading slash
       (list #\ )
       (symbol->chars active-color)
       (list #\ )
-      (apply
-        append
-        (map symbol->chars castling))
+      (if (null? castling)
+        (list #\-)
+        (apply
+          append
+          (map symbol->chars castling)))
       (list #\ )
       (string->list
         (if (null? en-passant) "-" (square-to-alg en-passant)))
@@ -800,18 +803,22 @@
     (decode-fen
       "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1"))
 
+  (d "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1")
+  (d (encode-fen (decode-fen "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1")))
+  (exit)
+
   (display-evaluation
     position
     (evaluate-position-at-ply
       position
-      1.5)
+      0.5)
     )
 
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(hash-for-each
-  ;  (lambda (position _) (display-position position))
-  ;  positions-that-were-expanded-for-moves)
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (hash-for-each
+    (lambda (position _) (display-position position))
+    positions-that-were-expanded-for-moves)
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
 
   )
