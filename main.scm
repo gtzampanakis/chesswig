@@ -480,7 +480,7 @@
 (define (can-king-be-captured? position)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
-  (define king (if (eq? active-color 'w) 'k 'K))
+  (define king (if (eq? active-color 'w) k K))
   (define is-piece-of-active-color?
     (if (eq? active-color 'w) white-piece? black-piece?))
   (call/ec
