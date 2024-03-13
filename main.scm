@@ -760,26 +760,26 @@
       (lambda (direction)
         (let loop (
             (coords (next-coords-in-direction coords direction))
-            (max-distance max-distance))
+            (max-distance max-distance)
+            (result '()))
           (cond
             ((= max-distance 0)
-              '())
+              result)
             ((null? coords)
-              '())
+              result)
             ((friendly-piece-at-coords? placement coords color)
-              '())
+              result)
             ((enemy-piece-at-coords? placement coords color)
               (if capture-allowed?
-                 coords
-                '()))
+                (cons coords result)
+                result))
             ((not non-capture-allowed?)
-              '())
+              result)
             (else
-              (cons
-                coords
-                (loop
-                  (next-coords-in-direction coords direction)
-                  (1- max-distance)))))))
+              (loop
+                (next-coords-in-direction coords direction)
+                (1- max-distance)
+                (cons coords result))))))
       directions)))
 
 (define (display-position position)
@@ -795,47 +795,47 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 
-;(define (main)
-;  (define position
-;    (decode-fen
-;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-;
-;  (display-evaluation
-;    position
-;    (evaluate-position-at-ply
-;      position
-;      1.0)
-;    )
-;
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(hash-for-each
-;  ;  (lambda (position _) (display-position position))
-;  ;  positions-that-were-expanded-for-moves)
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;
-;  )
+(define (main)
+  (define position
+    (decode-fen
+      "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1"))
+
+  (display-evaluation
+    position
+    (evaluate-position-at-ply
+      position
+      1.5)
+    )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(hash-for-each
+  ;  (lambda (position _) (display-position position))
+  ;  positions-that-were-expanded-for-moves)
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+
+  )
 
 (define (time)
   (let ((t (gettimeofday)))
     (+ (car t) (/ (cdr t) 1000000))))
 
-(define (main)
-  (define position (decode-fen fen-initial))
-  (define loops 400)
-  (define t0 (time))
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (available-moves-from-position position #t)
-      (outer-loop (1- i))))
-  (define t1 (time))
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+;(define (main)
+;  (define position (decode-fen fen-initial))
+;  (define loops 1)
+;  (define t0 (time))
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (available-moves-from-position position #t)
+;      (outer-loop (1- i))))
+;  (define t1 (time))
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
 
 (if profile?
   (statprof
