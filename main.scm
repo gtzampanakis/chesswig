@@ -802,13 +802,13 @@
 (define (main)
   (define position
     (decode-fen
-     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
+     "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1"))
 
   (display-evaluation
     position
     (evaluate-position-at-ply
       position
-      1.0)
+      1.5)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
