@@ -487,7 +487,7 @@
     (lambda (return)
       (for-each
         (lambda (move)
-          (when (eq? (piece-at-coords placement (cadr move)) king)
+          (when (= (piece-at-coords placement (cadr move)) king)
             (return #t)))
         (available-moves-from-position position #f))
       #f)))
