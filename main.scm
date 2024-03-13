@@ -5,8 +5,6 @@
 (use-modules (oop goops))
 (use-modules (oop goops describe))
 (use-modules (util))
-;(use-modules (srfi srfi-41))
-(use-modules (stream))
 (use-modules (statprof))
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
@@ -93,31 +91,30 @@
 (define-memoization-syntax define-memoized lambda)
 (define-memoization-syntax define-stream-memoized stream-lambda)
 
-(define-stream (stream-placement-indices)
-  (let loop ((f 0) (r 0))
+(define (placement-indices)
+  (let loop ((f 0) (r 0) (result '()))
     (if (> r 7)
-      stream-null
-      (stream-cons
-        (list f r)
-        (loop
-          (if (= f 7)
-            0
-            (1+ f))
-          (if (= f 7)
-            (1+ r)
-            r))))))
+      result
+      (loop
+        (if (= f 7)
+          0
+          (1+ f))
+        (if (= f 7)
+          (1+ r)
+          r)
+        (cons (list f r) result)))))
 
-(define-stream (stream-map-over-placement proc placement)
-  (stream-map
+(define (map-over-placement proc placement)
+  (map
     (lambda (coords)
       (proc (array-ref placement (cadr coords) (car coords)) coords))
-    (stream-placement-indices)))
+    (placement-indices)))
 
-(define (stream-for-each-over-placement proc placement)
-  (stream-for-each
+(define (for-each-over-placement proc placement)
+  (for-each
     (lambda (coords)
       (proc (array-ref placement (cadr coords) (car coords)) coords))
-    (stream-placement-indices)))
+    (placement-indices)))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -196,14 +193,14 @@
   (define rank-str
     (call/ec
       (lambda (return)
-        (stream-for-each-over-placement
+        (for-each-over-placement
           (lambda (piece coords)
             (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
               (when (eq? piece piece-moving)
                 (when (= (car coords) (car sq-from))
                   ; When same type of piece on same file.
                   (when (not (equal? coords sq-from))
-                    (stream-for-each
+                    (for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (return
@@ -216,14 +213,14 @@
   (define file-str
     (call/ec
       (lambda (return)
-        (stream-for-each-over-placement
+        (for-each-over-placement
           (lambda (piece coords)
             (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
               (when (eq? piece piece-moving)
                 (when (not (= (car coords) (car sq-from)))
                   ; When same type of piece on different file.
                   (when (not (equal? coords sq-from))
-                    (stream-for-each
+                    (for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (return
@@ -444,7 +441,7 @@
   (define moves (available-moves-from-position position #t))
   (call/ec
     (lambda (return)
-      (stream-for-each
+      (for-each
         (lambda (move)
           (when
             (eq?
@@ -456,27 +453,27 @@
 
 (define (is-position-checkmate? position)
   (and
-    (stream-null? (available-moves-from-position position #t))
+    (null? (available-moves-from-position position #t))
     (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (stream-null? (available-moves-from-position position #t))
+    (null? (available-moves-from-position position #t))
     (not (is-position-check? position))))
 
-(define-stream (available-squares-for-rook coords position)
+(define (available-squares-for-rook coords position)
   (available-squares-along-directions
       coords position '(u r d l) 7 #t #t))
 
-(define-stream (available-squares-for-bishop coords position)
+(define (available-squares-for-bishop coords position)
   (available-squares-along-directions
       coords position '(ur dr dl ul) 7 #t #t))
 
-(define-stream (available-squares-for-queen coords position)
+(define (available-squares-for-queen coords position)
   (available-squares-along-directions
       coords position '(u ur r dr d dl l ul) 7 #t #t))
 
-(define-stream (available-squares-for-king coords position)
+(define (available-squares-for-king coords position)
   (available-squares-along-directions
       coords position '(u ur r dr d dl l ul) 1 #t #t))
 
@@ -488,14 +485,14 @@
     (if (eq? active-color 'w) white-piece? black-piece?))
   (call/ec
     (lambda (return)
-      (stream-for-each
+      (for-each
         (lambda (move)
           (when (eq? (piece-at-coords placement (cadr move)) king)
             (return #t)))
         (available-moves-from-position position #f))
       #f)))
 
-(define-stream (available-squares-for-pawn coords position)
+(define (available-squares-for-pawn coords position)
   (define placement (list-ref position 0))
   (define color
     (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
@@ -503,7 +500,7 @@
   (define forward-right-direction (if (eq? color 'w) 'ur 'dl))
   (define forward-left-direction (if (eq? color 'w) 'ul 'dr))
   (define initial-rank (if (eq? color 'w) 1 6))
-  (stream-append
+  (append
     (available-squares-along-directions
       coords position
         (list forward-direction)
@@ -512,29 +509,29 @@
       coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
-(define-stream (available-squares-for-knight coords position)
+(define (available-squares-for-knight coords position)
   (define placement (list-ref position 0))
   (define
     color
     (if (member (piece-at-coords placement coords) white-pieces)
       'w 'b))
-  (stream-filter
+  (filter
     (lambda (candidate-coords)
       (and (not (null? candidate-coords))
         (not
           (friendly-piece-at-coords?
             placement candidate-coords color))))
-    (stream-map
+    (map
       (lambda (direction)
         (next-coords-in-direction coords direction))
-      (list->stream knight-directions))))
+      knight-directions)))
 
-(define-stream (available-squares-from-coords coords position dont-allow-exposed-king)
+(define (available-squares-from-coords coords position dont-allow-exposed-king)
   (define placement (list-ref position 0))
   (define unchecked-for-checks
     (let ((piece (piece-at-coords placement coords)))
       (cond
-        ((= piece E) stream-null)
+        ((= piece E) '())
         ((or (= piece P) (= piece p)) (available-squares-for-pawn coords position))
         ((or (= piece N) (= piece n)) (available-squares-for-knight coords position))
         ((or (= piece B) (= piece b)) (available-squares-for-bishop coords position))
@@ -542,13 +539,13 @@
         ((or (= piece R) (= piece r)) (available-squares-for-rook coords position))
         ((or (= piece K) (= piece k)) (available-squares-for-king coords position)))))
   (if dont-allow-exposed-king
-    (stream-map
+    (map
       cadr
-      (stream-filter
+      (filter
         (lambda (move)
           (not (can-king-be-captured?
               (position-after-move position move))))
-        (stream-map
+        (map
           (lambda (sq)
             (list coords sq))
           unchecked-for-checks)))
@@ -565,14 +562,14 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define-stream (available-moves-from-position position dont-allow-exposed-king)
+(define (available-moves-from-position position dont-allow-exposed-king)
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
-  (stream-concat
-    (stream-map-over-placement
+  (concatenate
+    (map-over-placement
       (lambda (piece coords-from)
-        (stream-map
+        (map
           (lambda (coords-to)
             (list coords-from coords-to))
           (if
@@ -581,7 +578,7 @@
               (and (eq? active-color 'b) (black-piece? piece)))
             (available-squares-from-coords
                 coords-from position dont-allow-exposed-king)
-            stream-null)))
+            '())))
       placement)))
 
 (define (toggled-color color)
@@ -643,10 +640,10 @@
       0)
     (else
       (let ((placement (list-ref position 0)))
-        (stream-fold
+        (fold
           +
           0
-          (stream-map-over-placement
+          (map-over-placement
             (lambda (piece coords)
               (piece-base-value piece))
             placement))))))
@@ -659,24 +656,23 @@
     (list
       (list (evaluate-position-static position) '()))
     (let ((unsorted
-        (stream->list
-          (stream-map
-            (lambda (move)
-              (define new-pos (position-after-move position move))
-              (define eval-obj
-                (evaluate-position-at-ply new-pos (- ply 0.5)))
-              (if (null? eval-obj)
-                (list
-                  (evaluate-position-static new-pos)
-                  (cons move '()))
-              ; Pick only the best continuation for the opponent.
-                (let ((sel-proc
-                    (if (eq? (list-ref position 1) 'w)
-                      first last)))
-                  (match (sel-proc eval-obj)
-                    ((val move-seq)
-                      (list val (cons move move-seq)))))))
-            (available-moves-from-position position #t)))))
+        (map
+          (lambda (move)
+            (define new-pos (position-after-move position move))
+            (define eval-obj
+              (evaluate-position-at-ply new-pos (- ply 0.5)))
+            (if (null? eval-obj)
+              (list
+                (evaluate-position-static new-pos)
+                (cons move '()))
+            ; Pick only the best continuation for the opponent.
+              (let ((sel-proc
+                  (if (eq? (list-ref position 1) 'w)
+                    first last)))
+                (match (sel-proc eval-obj)
+                  ((val move-seq)
+                    (list val (cons move move-seq)))))))
+          (available-moves-from-position position #t))))
       (sort
         unsorted
         (lambda (left-ls right-ls)
@@ -751,7 +747,7 @@
         val*
         move-seq*))))
 
-(define-stream (available-squares-along-directions
+(define (available-squares-along-directions
           coords position directions
           max-distance capture-allowed? non-capture-allowed?)
   (define placement (list-ref position 0))
@@ -759,32 +755,32 @@
     color
     (if (member (piece-at-coords placement coords) white-pieces)
       'w 'b))
-  (stream-concat
-    (stream-map
+  (concatenate
+    (map
       (lambda (direction)
         (let loop (
             (coords (next-coords-in-direction coords direction))
             (max-distance max-distance))
           (cond
             ((= max-distance 0)
-              stream-null)
+              '())
             ((null? coords)
-              stream-null)
+              '())
             ((friendly-piece-at-coords? placement coords color)
-              stream-null)
+              '())
             ((enemy-piece-at-coords? placement coords color)
               (if capture-allowed?
-                (stream coords)
-                stream-null))
+                 coords
+                '()))
             ((not non-capture-allowed?)
-              stream-null)
+              '())
             (else
-              (stream-cons
+              (cons
                 coords
                 (loop
                   (next-coords-in-direction coords direction)
                   (1- max-distance)))))))
-      (list->stream directions))))
+      directions)))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
@@ -799,54 +795,47 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 
-(define (main)
-  (define position
-    (decode-fen
-     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
-
-  (display-evaluation
-    position
-    (evaluate-position-at-ply
-      position
-      1.0)
-    )
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(hash-for-each
-  ;  (lambda (position _) (display-position position))
-  ;  positions-that-were-expanded-for-moves)
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-
-  )
-
-;(define (time)
-;  (let ((t (gettimeofday)))
-;    (+ (car t) (/ (cdr t) 1000000))))
+;(define (main)
+;  (define position
+;    (decode-fen
+;     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0"))
 ;
-;(define (main)
-;  (define position (decode-fen fen-initial))
-;  (define loops 400)
-;  (define t0 (time))
-;  (let outer-loop ((i loops))
-;    (when (> i 0)
-;      (stream->list
-;        (available-moves-from-position position #t))
-;      (outer-loop (1- i))))
-;  (define t1 (time))
+;  (display-evaluation
+;    position
+;    (evaluate-position-at-ply
+;      position
+;      1.0)
+;    )
+;
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(hash-for-each
+;  ;  (lambda (position _) (display-position position))
+;  ;  positions-that-were-expanded-for-moves)
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;  (display (* 1000.0 (/ (- t1 t0) loops)))
-;  (display " ms per loop, ")
-;  (display loops)
-;  (display " loops")
-;  (newline)
-;)
+;
+;  )
 
-;(define (main)
-;  (define position (decode-fen fen-initial))
-;  (d (encode-fen position))
-;  (stream-for-each d
-;    (available-moves-from-position position #t)))
+(define (time)
+  (let ((t (gettimeofday)))
+    (+ (car t) (/ (cdr t) 1000000))))
+
+(define (main)
+  (define position (decode-fen fen-initial))
+  (define loops 400)
+  (define t0 (time))
+  (let outer-loop ((i loops))
+    (when (> i 0)
+      (available-moves-from-position position #t)
+      (outer-loop (1- i))))
+  (define t1 (time))
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+  (display (* 1000.0 (/ (- t1 t0) loops)))
+  (display " ms per loop, ")
+  (display loops)
+  (display " loops")
+  (newline)
+)
 
 (if profile?
   (statprof
