@@ -790,7 +790,7 @@
     (display "position: ")
     (display enc)
     (display " ")
-    ;(display-move-seq-from-position position)
+    (display-move-seq-from-position position)
     (newline)))
 
 
@@ -803,10 +803,6 @@
     (decode-fen
       "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1"))
 
-  (d "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1")
-  (d (encode-fen (decode-fen "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1")))
-  (exit)
-
   (display-evaluation
     position
     (evaluate-position-at-ply
@@ -815,9 +811,11 @@
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (hash-for-each
-    (lambda (position _) (display-position position))
-    positions-that-were-expanded-for-moves)
+  (for-each
+    display-position
+    (hash-map->list
+      (lambda (position _) position)
+      positions-that-were-expanded-for-moves))
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
 
