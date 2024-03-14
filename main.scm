@@ -794,52 +794,52 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 
-;(define (main)
-;  (define position
-;    (decode-fen fen-mate-in-2))
-;
-;  ;(display-evaluation
-;  ;  position
-;    (evaluate-position-at-ply
-;      position
-;      0.5)
-;  ;  )
-;
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(for-each
-;  ;  display-position
-;  ;  (hash-map->list
-;  ;    (lambda (position _) position)
-;  ;    positions-that-were-expanded-for-moves))
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;
-;  )
+(define (main)
+  (define position
+    (decode-fen "6nk/8/8/8/8/8/8/KN6 w - - 0 1"))
+
+  (display-evaluation
+    position
+   (evaluate-position-at-ply
+     position
+     2.5)
+    )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(for-each
+  ;  display-position
+  ;  (hash-map->list
+  ;    (lambda (position _) position)
+  ;    positions-that-were-expanded-for-moves))
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+
+  )
 
 (define (time)
   (let ((t (gettimeofday)))
     (+ (car t) (/ (cdr t) 1000000))))
 
-(define (main)
-  (define position (decode-fen fen-initial))
-  (define loops 10000)
-  (define t0 (time))
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (available-moves-from-position position #t)
-      (outer-loop (1- i))))
-  (define t1 (time))
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+;(define (main)
+;  (define position (decode-fen fen-initial))
+;  (define loops 10000)
+;  (define t0 (time))
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (available-moves-from-position position #t)
+;      (outer-loop (1- i))))
+;  (define t1 (time))
+;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
 
 (if profile?
   (statprof
     main
-    #:display-style 'tree
+    #:display-style 'flat
     #:loop 1)
   (main))
