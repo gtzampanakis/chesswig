@@ -2,14 +2,12 @@
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
-(use-modules (oop goops))
-(use-modules (oop goops describe))
 (use-modules (util))
 (use-modules (statprof))
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
 
-(define profile? #f)
+(define profile? #t)
 
 (define E 0)
 (define R 2)
@@ -72,24 +70,13 @@
         result)
       cached-result)))
 
-(define-syntax define-memoization-syntax
+(define-syntax define-memoized
   (syntax-rules ()
-    ((_ s1 s2)
-      (define-syntax s1
-        (syntax-rules (args-to-key-proc)
-          ((_ (name . args) (args-to-key-proc p) expr expr* (... ...))
-            (define name
-              (memoized-proc p
-                (s2 args
-                  expr expr* (... ...)))))
-          ((_ (name . args) expr expr* (... ...))
-            (s1
-              (name . args)
-              (args-to-key-proc (lambda a a))
-              expr expr* (... ...))))))))
-
-(define-memoization-syntax define-memoized lambda)
-(define-memoization-syntax define-stream-memoized stream-lambda)
+    ((_ (name . args) args-to-key-proc expr expr* ...)
+      (define name
+        (memoized-proc
+          args-to-key-proc
+          (lambda args expr expr* ...))))))
 
 (define (placement-indices)
   (let loop ((f 0) (r 0) (result '()))
@@ -565,7 +552,16 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define (available-moves-from-position position dont-allow-exposed-king)
+(define-memoized (available-moves-from-position position dont-allow-exposed-king)
+  (lambda (position dont-allow-exposed-king)
+    (list
+      (list-ref position 0)
+      (list-ref position 1)
+      (list-ref position 2)
+      (list-ref position 3)
+      (list-ref position 4)
+      (list-ref position 5)
+      dont-allow-exposed-king))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position 0))
   (define active-color (list-ref position 1))
@@ -798,53 +794,52 @@
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 
-(define (main)
-  (define position
-    (decode-fen
-      "7k/7n/8/8/8/8/N7/K7 w - - 0 1"))
-
-  ;(display-evaluation
-  ;  position
-    (evaluate-position-at-ply
-      position
-      0.5)
-  ;  )
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (for-each
-    display-position
-    (hash-map->list
-      (lambda (position _) position)
-      positions-that-were-expanded-for-moves))
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-
-  )
+;(define (main)
+;  (define position
+;    (decode-fen fen-mate-in-2))
+;
+;  ;(display-evaluation
+;  ;  position
+;    (evaluate-position-at-ply
+;      position
+;      0.5)
+;  ;  )
+;
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(for-each
+;  ;  display-position
+;  ;  (hash-map->list
+;  ;    (lambda (position _) position)
+;  ;    positions-that-were-expanded-for-moves))
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;
+;  )
 
 (define (time)
   (let ((t (gettimeofday)))
     (+ (car t) (/ (cdr t) 1000000))))
 
-;(define (main)
-;  (define position (decode-fen fen-initial))
-;  (define loops 1)
-;  (define t0 (time))
-;  (let outer-loop ((i loops))
-;    (when (> i 0)
-;      (available-moves-from-position position #t)
-;      (outer-loop (1- i))))
-;  (define t1 (time))
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;  (display (* 1000.0 (/ (- t1 t0) loops)))
-;  (display " ms per loop, ")
-;  (display loops)
-;  (display " loops")
-;  (newline)
-;)
+(define (main)
+  (define position (decode-fen fen-initial))
+  (define loops 10000)
+  (define t0 (time))
+  (let outer-loop ((i loops))
+    (when (> i 0)
+      (available-moves-from-position position #t)
+      (outer-loop (1- i))))
+  (define t1 (time))
+  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+  (display (* 1000.0 (/ (- t1 t0) loops)))
+  (display " ms per loop, ")
+  (display loops)
+  (display " loops")
+  (newline)
+)
 
 (if profile?
   (statprof
     main
     #:display-style 'tree
-    #:loop 24)
+    #:loop 1)
   (main))
