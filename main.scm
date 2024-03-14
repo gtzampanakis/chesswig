@@ -801,7 +801,7 @@
 (define (main)
   (define position
     (decode-fen
-      "k7/4b3/8/2B5/8/8/8/K7 w - - 0 1"))
+      "7k/7n/8/8/8/8/N7/K7 w - - 0 1"))
 
   ;(display-evaluation
   ;  position
