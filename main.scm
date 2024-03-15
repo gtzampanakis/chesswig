@@ -1,14 +1,14 @@
-(use-modules (util))
 (use-modules (ice-9 arrays))
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
+(use-modules (util))
 (use-modules (statprof))
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
 
-(define profile? #t)
-(define caching? #f)
+(define profile? #f)
+(define caching? #t)
 
 (define E 0)
 (define R 2)
@@ -23,6 +23,15 @@
 (define q 13)
 (define k 14)
 (define p 9)
+
+(define position-index-placement 0)
+(define position-index-active-color 1)
+(define position-index-castling 2)
+(define position-index-en-passant 3)
+(define position-index-halfmoves 4)
+(define position-index-fullmoves 5)
+(define position-index-last-position 6)
+(define position-index-last-move 7)
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
@@ -163,7 +172,7 @@
   (define sq-from (car move))
   (define sq-to (cadr move))
   (define sq-to-str (square-to-alg sq-to))
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define piece-moving (piece-at-coords placement sq-from))
   (define capture? (piece-at-coords? placement sq-to))
   (define capture-str (if capture? "x" ""))
@@ -316,12 +325,12 @@
   (string->list (symbol->string sym)))
 
 (define (encode-fen position)
-  (define placement (list-ref position 0))
-  (define active-color (list-ref position 1))
-  (define castling (list-ref position 2))
-  (define en-passant (list-ref position 3))
-  (define halfmoves (list-ref position 4))
-  (define fullmoves (list-ref position 5))
+  (define placement (list-ref position position-index-placement))
+  (define active-color (list-ref position position-index-active-color))
+  (define castling (list-ref position position-index-castling))
+  (define en-passant (list-ref position position-index-en-passant))
+  (define halfmoves (list-ref position position-index-halfmoves))
+  (define fullmoves (list-ref position position-index-fullmoves))
   (define placement-chars
     (let loop ((r 7) (result '()))
       (if (= r -1)
@@ -420,15 +429,15 @@
   (not (= (piece-at-coords placement coords) E)))
 
 (define (toggle-active-color position)
-  (define active-color (list-ref position 1))
+  (define active-color (list-ref position position-index-active-color))
   (define new-position (list-copy position))
   (list-set! new-position 1 (if (eq? active-color 'w) 'b 'w))
   new-position)
 
 (define (is-position-check? position-in)
   (define position (toggle-active-color position-in))
-  (define placement (list-ref position 0))
-  (define king-to-capture (if (eq? (list-ref position 1) 'w) 'k 'K)) 
+  (define placement (list-ref position position-index-placement))
+  (define king-to-capture (if (eq? (list-ref position position-index-active-color) 'w) 'k 'K)) 
   (define moves (available-moves-from-position position #t))
   (call/ec
     (lambda (return)
@@ -469,8 +478,8 @@
       coords position '(u ur r dr d dl l ul) 1 #t #t))
 
 (define (can-king-be-captured? position)
-  (define placement (list-ref position 0))
-  (define active-color (list-ref position 1))
+  (define placement (list-ref position position-index-placement))
+  (define active-color (list-ref position position-index-active-color))
   (define king (if (eq? active-color 'w) k K))
   (define is-piece-of-active-color?
     (if (eq? active-color 'w) white-piece? black-piece?))
@@ -484,7 +493,7 @@
       #f)))
 
 (define (available-squares-for-pawn coords position)
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define color
     (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
   (define forward-direction (if (eq? color 'w) 'u 'd))
@@ -501,7 +510,7 @@
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
 (define (available-squares-for-knight coords position)
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define
     color
     (if (member (piece-at-coords placement coords) white-pieces)
@@ -518,7 +527,7 @@
       knight-directions)))
 
 (define (available-squares-from-coords coords position dont-allow-exposed-king)
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define unchecked-for-checks
     (let ((piece (piece-at-coords placement coords)))
       (cond
@@ -551,8 +560,8 @@
 (define (display-move-seq-from-position position)
   (match
     (let loop ((position position) (move-seq '()))
-      (define last-position (list-ref position 6))
-      (define last-move (list-ref position 7))
+      (define last-position (list-ref position position-index-last-position))
+      (define last-move (list-ref position position-index-last-move))
       (if (null? last-position)
         (list position move-seq)
         (loop last-position (cons last-move move-seq))))
@@ -562,16 +571,16 @@
 (define-memoized (available-moves-from-position position dont-allow-exposed-king)
   (lambda (position dont-allow-exposed-king)
     (list
-      (list-ref position 0)
-      (list-ref position 1)
-      (list-ref position 2)
-      (list-ref position 3)
-      (list-ref position 4)
-      (list-ref position 5)
+      (list-ref position position-index-placement)
+      (list-ref position position-index-active-color)
+      (list-ref position position-index-castling)
+      (list-ref position position-index-en-passant)
+      (list-ref position position-index-halfmoves)
+      (list-ref position position-index-fullmoves)
       dont-allow-exposed-king))
   (hash-set! positions-that-were-expanded-for-moves position 1)
-  (define placement (list-ref position 0))
-  (define active-color (list-ref position 1))
+  (define placement (list-ref position position-index-placement))
+  (define active-color (list-ref position position-index-active-color))
   (concatenate
     (map-over-placement
       (lambda (piece coords-from)
@@ -593,7 +602,7 @@
     ((b) 'w)))
 
 (define (position-after-move position move)
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define coords-from (car move))
   (define coords-to (cadr move))
   (define piece-moving (piece-at-coords placement coords-from))
@@ -607,15 +616,15 @@
   (array-set! new-placement piece-moving (cadr coords-to) (car coords-to))
   (list
     new-placement
-    (toggled-color (list-ref position 1))
-    (list-ref position 2)
-    (list-ref position 3)
+    (toggled-color (list-ref position position-index-active-color))
+    (list-ref position position-index-castling)
+    (list-ref position position-index-en-passant)
     (if (or capture? pawn-move?)
       0
-      (1+ (list-ref position 4)))
+      (1+ (list-ref position position-index-halfmoves)))
     (+
-      (list-ref position 5)
-      (if (eq? (list-ref position 1) 'b) 1 0))
+      (list-ref position position-index-fullmoves)
+      (if (eq? (list-ref position position-index-active-color) 'b) 1 0))
     position
     move))
 
@@ -636,7 +645,7 @@
     ((= piece k) -999999)))
 
 (define (evaluate-position-static position)
-  (define active-color (list-ref position 1))
+  (define active-color (list-ref position position-index-active-color))
   (cond
     ((is-position-checkmate? position)
       (
@@ -645,7 +654,7 @@
     ((is-position-stalemate? position)
       0)
     (else
-      (let ((placement (list-ref position 0)))
+      (let ((placement (list-ref position position-index-placement)))
         (fold
           +
           0
@@ -673,7 +682,7 @@
                 (cons move '()))
             ; Pick only the best continuation for the opponent.
               (let ((sel-proc
-                  (if (eq? (list-ref position 1) 'w)
+                  (if (eq? (list-ref position position-index-active-color) 'w)
                     first last)))
                 (match (sel-proc eval-obj)
                   ((val move-seq)
@@ -718,7 +727,7 @@
       (move-number 1)
       (move-seq move-seq)
       (first #t))
-    (define active-color (list-ref position 1))
+    (define active-color (list-ref position position-index-active-color))
     (unless (null? move-seq)
       (when (or (eq? active-color 'w) first)
         (display move-number)
@@ -739,7 +748,7 @@
         #f))))
 
 (define (display-evaluation position eval-obj)
-  (define active-color (list-ref position 1))
+  (define active-color (list-ref position position-index-active-color))
   (define sorted-according-to-active-color
     (if (eq? active-color 'w) (reverse eval-obj) eval-obj))
   (match sorted-according-to-active-color
@@ -756,7 +765,7 @@
 (define (available-squares-along-directions
           coords position directions
           max-distance capture-allowed? non-capture-allowed?)
-  (define placement (list-ref position 0))
+  (define placement (list-ref position position-index-placement))
   (define
     color
     (if (member (piece-at-coords placement coords) white-pieces)
@@ -809,7 +818,7 @@
     position
    (evaluate-position-at-ply
      position
-     1.0)
+     1.5)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
