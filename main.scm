@@ -32,10 +32,24 @@
 (define position-index-fullmoves 5)
 (define position-index-last-position 6)
 (define position-index-last-move 7)
+(define position-index-placement-by-piece 8)
+
+(define placement-by-piece-index-R 0)
+(define placement-by-piece-index-N 1)
+(define placement-by-piece-index-B 2)
+(define placement-by-piece-index-Q 3)
+(define placement-by-piece-index-K 4)
+(define placement-by-piece-index-P 5)
+(define placement-by-piece-index-r 6)
+(define placement-by-piece-index-n 7)
+(define placement-by-piece-index-b 8)
+(define placement-by-piece-index-q 9)
+(define placement-by-piece-index-k 10)
+(define placement-by-piece-index-p 11)
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
-(define pieces (append white-pieces black-pieces))
+(define all-pieces (append white-pieces black-pieces))
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
 
@@ -300,18 +314,46 @@
 (define (decode-fullmoves fullmoves-string)
   (string->number fullmoves-string))
 
+(define (piece-to-placement-by-piece-index piece)
+  (cond
+    ((= piece R) placement-by-piece-index-R)
+    ((= piece N) placement-by-piece-index-N)
+    ((= piece B) placement-by-piece-index-B)
+    ((= piece Q) placement-by-piece-index-Q)
+    ((= piece K) placement-by-piece-index-K)
+    ((= piece P) placement-by-piece-index-P)
+    ((= piece r) placement-by-piece-index-r)
+    ((= piece n) placement-by-piece-index-n)
+    ((= piece b) placement-by-piece-index-b)
+    ((= piece q) placement-by-piece-index-q)
+    ((= piece k) placement-by-piece-index-k)
+    ((= piece p) placement-by-piece-index-p)
+    (else -1)))
+
+(define (placement-to-placement-by-piece placement)
+  (define result (make-vector 12 '()))
+  (for-each-over-placement
+    (lambda (piece coords)
+      (define index (piece-to-placement-by-piece-index piece))
+      (when (> index -1)
+        (vector-set! result index
+          (cons coords (vector-ref result index)))))
+    placement)
+  result)
+
 (define (decode-fen fen-string)
   (let ((field-strings (string-split fen-string #\ )))
-    (list
-      (decode-placement-data (list-ref field-strings 0))
-      (decode-active-color (list-ref field-strings 1))
-      (decode-castling (list-ref field-strings 2))
-      (decode-en-passant (list-ref field-strings 3))
-      (decode-halfmoves (list-ref field-strings 4))
-      (decode-fullmoves (list-ref field-strings 5))
-      '() ; last position
-      '() ; last move
-      )))
+    (let ((placement (decode-placement-data (list-ref field-strings 0))))
+      (list
+        placement
+        (decode-active-color (list-ref field-strings 1))
+        (decode-castling (list-ref field-strings 2))
+        (decode-en-passant (list-ref field-strings 3))
+        (decode-halfmoves (list-ref field-strings 4))
+        (decode-fullmoves (list-ref field-strings 5))
+        '() ; last position
+        '() ; last move
+        (placement-to-placement-by-piece placement)))))
 
 (define (inc-char char)
   (car
@@ -580,26 +622,60 @@
       dont-allow-exposed-king))
   (hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position position-index-placement))
+  (define placement-by-piece (list-ref position position-index-placement-by-piece))
   (define active-color (list-ref position position-index-active-color))
-  (concatenate
-    (map-over-placement
-      (lambda (piece coords-from)
-        (map
-          (lambda (coords-to)
-            (list coords-from coords-to))
-          (if
-            (or
-              (and (eq? active-color 'w) (white-piece? piece))
-              (and (eq? active-color 'b) (black-piece? piece)))
-            (available-squares-from-coords
-                coords-from position dont-allow-exposed-king)
-            '())))
-      placement)))
+  (if #f
+    (concatenate
+      (map-over-placement
+        (lambda (piece coords-from)
+          (map
+            (lambda (coords-to)
+              (list coords-from coords-to))
+            (if
+              (or
+                (and (eq? active-color 'w) (white-piece? piece))
+                (and (eq? active-color 'b) (black-piece? piece)))
+              (available-squares-from-coords
+                  coords-from position dont-allow-exposed-king)
+              '())))
+        placement))
+    (concatenate
+      (let loop (
+          (i (if (eq? active-color 'w) 0 6))
+          (n-pieces-done 0)
+          (result '()))
+        (if (= n-pieces-done 6)
+          result
+          (loop
+            (1+ i)
+            (1+ n-pieces-done)
+            (cons
+              (concatenate
+                (map
+                  (lambda (coords)
+                    (map
+                      (lambda (coords-to)
+                        (list coords coords-to))
+                      (available-squares-from-coords
+                        coords position dont-allow-exposed-king)))
+                  (vector-ref placement-by-piece i)))
+              result)))))))
 
 (define (toggled-color color)
   (case color
     ((w) 'b)
     ((b) 'w)))
+
+(define (placement-by-piece-after-move
+          placement-by-piece piece coords-from coords-to)
+  (define result (vector-copy placement-by-piece))
+  (define index (piece-to-placement-by-piece-index piece))
+  (vector-set! result index
+    (map
+      (lambda (coords)
+        (if (equal? coords coords-from) coords-to coords))
+      (vector-ref result index)))
+  result)
 
 (define (position-after-move position move)
   (define placement (list-ref position position-index-placement))
@@ -626,7 +702,12 @@
       (list-ref position position-index-fullmoves)
       (if (eq? (list-ref position position-index-active-color) 'b) 1 0))
     position
-    move))
+    move
+    (placement-by-piece-after-move
+      (list-ref position position-index-placement-by-piece)
+      piece-moving
+      coords-from
+      coords-to)))
 
 (define (piece-base-value piece)
   (cond
@@ -818,7 +899,7 @@
     position
    (evaluate-position-at-ply
      position
-     1.5)
+     2.5)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -828,7 +909,7 @@
   ;    (lambda (position _) position)
   ;    positions-that-were-expanded-for-moves))
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
 
   )
 
