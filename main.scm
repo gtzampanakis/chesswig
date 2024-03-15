@@ -1,13 +1,14 @@
+(use-modules (util))
 (use-modules (ice-9 arrays))
 (use-modules (ice-9 control))
 (use-modules (ice-9 match))
 (use-modules (srfi srfi-1))
-(use-modules (util))
 (use-modules (statprof))
 
 (define positions-that-were-expanded-for-moves (make-hash-table))
 
 (define profile? #t)
+(define caching? #f)
 
 (define E 0)
 (define R 2)
@@ -64,7 +65,7 @@
   (lambda args
     (define key (apply args-to-key-proc args))
     (define cached-result (hash-ref cache key 'cache:not-exists))
-    (if (eq? cached-result 'cache:not-exists)
+    (if (or (not caching?) (eq? cached-result 'cache:not-exists))
       (let ((result (apply proc args)))
         (hash-set! cache key result)
         result)
@@ -78,7 +79,7 @@
           args-to-key-proc
           (lambda args expr expr* ...))))))
 
-(define (placement-indices)
+(define placement-indices
   (let loop ((f 0) (r 0) (result '()))
     (if (> r 7)
       result
@@ -95,13 +96,13 @@
   (map
     (lambda (coords)
       (proc (array-ref placement (cadr coords) (car coords)) coords))
-    (placement-indices)))
+    placement-indices))
 
 (define (for-each-over-placement proc placement)
   (for-each
     (lambda (coords)
       (proc (array-ref placement (cadr coords) (car coords)) coords))
-    (placement-indices)))
+    placement-indices))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -522,12 +523,18 @@
     (let ((piece (piece-at-coords placement coords)))
       (cond
         ((= piece E) '())
-        ((or (= piece P) (= piece p)) (available-squares-for-pawn coords position))
-        ((or (= piece N) (= piece n)) (available-squares-for-knight coords position))
-        ((or (= piece B) (= piece b)) (available-squares-for-bishop coords position))
-        ((or (= piece Q) (= piece q)) (available-squares-for-queen coords position))
-        ((or (= piece R) (= piece r)) (available-squares-for-rook coords position))
-        ((or (= piece K) (= piece k)) (available-squares-for-king coords position)))))
+        ((or (= piece P) (= piece p))
+          (available-squares-for-pawn coords position))
+        ((or (= piece N) (= piece n))
+          (available-squares-for-knight coords position))
+        ((or (= piece B) (= piece b))
+          (available-squares-for-bishop coords position))
+        ((or (= piece Q) (= piece q))
+          (available-squares-for-queen coords position))
+        ((or (= piece R) (= piece r))
+          (available-squares-for-rook coords position))
+        ((or (= piece K) (= piece k))
+          (available-squares-for-king coords position)))))
   (if dont-allow-exposed-king
     (map
       cadr
@@ -802,7 +809,7 @@
     position
    (evaluate-position-at-ply
      position
-     2.5)
+     1.0)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -841,5 +848,5 @@
   (statprof
     main
     #:display-style 'flat
-    #:loop 1)
+    #:loop 10)
   (main))
