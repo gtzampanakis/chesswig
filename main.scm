@@ -105,13 +105,13 @@
 (define (map-over-placement proc placement)
   (map
     (lambda (coords)
-      (proc (placement-ref placement (cadr coords) (car coords)) coords))
+      (proc (placement-ref placement (car coords) (cadr coords)) coords))
     placement-indices))
 
 (define (for-each-over-placement proc placement)
   (for-each
     (lambda (coords)
-      (proc (placement-ref placement (cadr coords) (car coords)) coords))
+      (proc (placement-ref placement (car coords) (cadr coords)) coords))
     placement-indices))
 
 (define (char->symbol char)
@@ -273,7 +273,7 @@
     (string->list rank-string)))
 
 (define (piece-at-coords placement coords)
-  (placement-ref placement (cadr coords) (car coords)))
+  (placement-ref placement (car coords) (cadr coords)))
 
 (define (decode-placement-data placement-data-string)
   (u8-list->bytevector
@@ -820,44 +820,47 @@
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
-
-(define (main)
-  (define position
-    (decode-fen "6nk/8/8/8/8/8/8/KN6 w - - 0 1"))
-
-  (display-evaluation
-    position
-   (evaluate-position-at-ply
-     position
-     1.0)
-    )
-
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(for-each
-  ;  display-position
-  ;  (hash-map->list
-  ;    (lambda (position _) position)
-  ;    positions-that-were-expanded-for-moves))
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-
-  )
+(define simple-position "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
 ;(define (main)
-;  (define position (decode-fen fen-initial))
-;  (define loops 10000)
-;  (define t0 (time))
-;  (let outer-loop ((i loops))
-;    (when (> i 0)
-;      (available-moves-from-position position #t)
-;      (outer-loop (1- i))))
-;  (define t1 (time))
-;  (d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;  (display (* 1000.0 (/ (- t1 t0) loops)))
-;  (display " ms per loop, ")
-;  (display loops)
-;  (display " loops")
-;  (newline)
-;)
+;  (define position
+;    (decode-fen fen-initial))
+;
+;  (display-evaluation
+;    position
+;   (evaluate-position-at-ply
+;     position
+;     1.0)
+;    )
+;
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(for-each
+;  ;  display-position
+;  ;  (hash-map->list
+;  ;    (lambda (position _) position)
+;  ;    positions-that-were-expanded-for-moves))
+;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+;
+;  )
+
+(define (main)
+  (define position (decode-fen fen-initial))
+  (define loops 10000)
+  (define t0 (seconds-since-epoch))
+  (define t1 -1)
+  (let outer-loop ((i loops))
+    (when (> i 0)
+      (available-moves-from-position position #t)
+      ;(for-each d (available-squares-for-knight (list 0 1) position))
+      ;(d (next-coords-in-direction (list 1 0) 'nul))
+      (outer-loop (1- i))))
+  (set! t1 (seconds-since-epoch))
+  (display (* 1000.0 (/ (- t1 t0) loops)))
+  (display " ms per loop, ")
+  (display loops)
+  (display " loops")
+  (newline)
+)
 
 (main)

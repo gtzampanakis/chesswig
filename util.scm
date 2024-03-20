@@ -13,7 +13,8 @@
   string-split
   first
   last
-  list-set!)
+  list-set!
+  seconds-since-epoch)
 (import
   (chezscheme))
 
@@ -134,5 +135,10 @@
     (if (= i 0)
       (set-car! ls v)
       (loop (cdr ls) (- i 1)))))
+
+(define (seconds-since-epoch)
+  (let ((t (current-time)))
+    (let ((s (time-second t)) (n (time-nanosecond t)))
+      (+ s (/ n 1000000000)))))
 
 )

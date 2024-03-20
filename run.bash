@@ -1,3 +1,3 @@
 #!/bin/bash
 
-chezscheme --script main.scm
+time chezscheme --debug-on-exception --script main.scm
