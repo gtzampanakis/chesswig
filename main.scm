@@ -25,8 +25,6 @@
 (define position-index-en-passant 3)
 (define position-index-halfmoves 4)
 (define position-index-fullmoves 5)
-(define position-index-last-position 6)
-(define position-index-last-move 7)
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
@@ -310,10 +308,7 @@
         (decode-castling (list-ref field-strings 2))
         (decode-en-passant (list-ref field-strings 3))
         (decode-halfmoves (list-ref field-strings 4))
-        (decode-fullmoves (list-ref field-strings 5))
-        '() ; last position
-        '() ; last move
-        ))))
+        (decode-fullmoves (list-ref field-strings 5))))))
 
 (define (inc-char char)
   (car
@@ -563,35 +558,25 @@
           unchecked-for-checks)))
     unchecked-for-checks))
 
-(define (display-move-seq-from-position position)
-  (match
-    (let loop ((position position) (move-seq '()))
-      (define last-position (list-ref position position-index-last-position))
-      (define last-move (list-ref position position-index-last-move))
-      (if (null? last-position)
-        (list position move-seq)
-        (loop last-position (cons last-move move-seq))))
-    ((position move-seq)
-      (display-move-seq position move-seq))))
-
 (define-memoized
-    (lambda (args)
-      (let ((position (car args)) (dont-allow-exposed-king (cadr args)))
-        (string-hash
-          (string-append
-            (encode-fen position)
-            (if dont-allow-exposed-king "t" "f")))))
-    (lambda (left-args right-args)
-      (let* (
-          (position-left (car left-args))
-          (dont-allow-exposed-king-left (cadr left-args))
-          (position-right (car right-args))
-          (dont-allow-exposed-king-right (cadr right-args)))
-        (and
-          (eq? dont-allow-exposed-king-left dont-allow-exposed-king-right)
-          (string=?
-            (encode-fen position-left)
-            (encode-fen position-right)))))
+    ;(lambda (args)
+    ;  (let ((position (car args)) (dont-allow-exposed-king (cadr args)))
+    ;    (string-hash
+    ;      (string-append
+    ;        (encode-fen position)
+    ;        (if dont-allow-exposed-king "t" "f")))))
+    ;(lambda (left-args right-args)
+    ;  (let* (
+    ;      (position-left (car left-args))
+    ;      (dont-allow-exposed-king-left (cadr left-args))
+    ;      (position-right (car right-args))
+    ;      (dont-allow-exposed-king-right (cadr right-args)))
+    ;    (and
+    ;      (eq? dont-allow-exposed-king-left dont-allow-exposed-king-right)
+    ;      (string=?
+    ;        (encode-fen position-left)
+    ;        (encode-fen position-right)))))
+    equal-hash equal?
     (available-moves-from-position position dont-allow-exposed-king)
   (define placement (list-ref position position-index-placement))
   (define active-color (list-ref position position-index-active-color))
@@ -640,9 +625,7 @@
       (1+ (list-ref position position-index-halfmoves)))
     (+
       (list-ref position position-index-fullmoves)
-      (if (eq? (list-ref position position-index-active-color) 'b) 1 0))
-    position
-    move))
+      (if (eq? (list-ref position position-index-active-color) 'b) 1 0))))
 
 (define (piece-base-value piece)
   (cond
@@ -836,7 +819,7 @@
     position
    (evaluate-position-at-ply
      position
-     5/2)
+     6/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
