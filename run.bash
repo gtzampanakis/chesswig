@@ -1,3 +1,3 @@
 #!/bin/bash
 
-time guile -L . main.scm
+chezscheme --script main.scm
