@@ -65,13 +65,13 @@
     ((= piece p) #\p)))
 
 (define (memoized-proc args-to-key-proc proc)
-  (define cache (make-hash-table))
+  (define cache (make-hashtable (lambda x 1) equal?))
   (lambda args
     (define key (apply args-to-key-proc args))
     (define cached-result (hashtable-ref cache key 'cache:not-exists))
     (if (or (not caching?) (eq? cached-result 'cache:not-exists))
       (let ((result (apply proc args)))
-        (hash-set! cache key result)
+        (hashtable-set! cache key result)
         result)
       cached-result)))
 
@@ -575,17 +575,16 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define (available-moves-from-position position dont-allow-exposed-king)
-;(define (available-moves-from-position position dont-allow-exposed-king)
-  ;(lambda (position dont-allow-exposed-king)
-  ;  (list
-  ;    (list-ref position position-index-placement)
-  ;    (list-ref position position-index-active-color)
-  ;    (list-ref position position-index-castling)
-  ;    (list-ref position position-index-en-passant)
-  ;    (list-ref position position-index-halfmoves)
-  ;    (list-ref position position-index-fullmoves)
-  ;    dont-allow-exposed-king))
+(define-memoized (available-moves-from-position position dont-allow-exposed-king)
+  (lambda (position dont-allow-exposed-king)
+    (list
+      (list-ref position position-index-placement)
+      (list-ref position position-index-active-color)
+      (list-ref position position-index-castling)
+      (list-ref position position-index-en-passant)
+      (list-ref position position-index-halfmoves)
+      (list-ref position position-index-fullmoves)
+      dont-allow-exposed-king))
   ;(hash-set! positions-that-were-expanded-for-moves position 1)
   (define placement (list-ref position position-index-placement))
   (define active-color (list-ref position position-index-active-color))
@@ -822,45 +821,45 @@
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
 (define simple-position "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
-;(define (main)
-;  (define position
-;    (decode-fen fen-initial))
-;
-;  (display-evaluation
-;    position
-;   (evaluate-position-at-ply
-;     position
-;     1.0)
-;    )
-;
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(for-each
-;  ;  display-position
-;  ;  (hash-map->list
-;  ;    (lambda (position _) position)
-;  ;    positions-that-were-expanded-for-moves))
-;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-;
-;  )
-
 (define (main)
-  (define position (decode-fen fen-initial))
-  (define loops 10000)
-  (define t0 (seconds-since-epoch))
-  (define t1 -1)
-  (let outer-loop ((i loops))
-    (when (> i 0)
-      (available-moves-from-position position #t)
-      ;(for-each d (available-squares-for-knight (list 0 1) position))
-      ;(d (next-coords-in-direction (list 1 0) 'nul))
-      (outer-loop (1- i))))
-  (set! t1 (seconds-since-epoch))
-  (display (* 1000.0 (/ (- t1 t0) loops)))
-  (display " ms per loop, ")
-  (display loops)
-  (display " loops")
-  (newline)
-)
+  (define position
+    (decode-fen fen-mate-in-2))
+
+  (display-evaluation
+    position
+   (evaluate-position-at-ply
+     position
+     1.0)
+    )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(for-each
+  ;  display-position
+  ;  (hash-map->list
+  ;    (lambda (position _) position)
+  ;    positions-that-were-expanded-for-moves))
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
+
+  )
+
+;(define (main)
+;  (define position (decode-fen fen-initial))
+;  (define loops 10000)
+;  (define t0 (seconds-since-epoch))
+;  (define t1 -1)
+;  (let outer-loop ((i loops))
+;    (when (> i 0)
+;      (available-moves-from-position position #t)
+;      ;(for-each d (available-squares-for-knight (list 0 1) position))
+;      ;(d (next-coords-in-direction (list 1 0) 'nul))
+;      (outer-loop (1- i))))
+;  (set! t1 (seconds-since-epoch))
+;  (display (* 1000.0 (/ (- t1 t0) loops)))
+;  (display " ms per loop, ")
+;  (display loops)
+;  (display " loops")
+;  (newline)
+;)
 
 (main)
