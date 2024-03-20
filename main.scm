@@ -64,10 +64,10 @@
     ((= piece k) #\k)
     ((= piece p) #\p)))
 
-(define (memoized-proc args-to-key-proc proc)
-  (define cache (make-hashtable (lambda x 1) equal?))
+(define (memoized-proc hash-function equiv proc)
+  (define cache (make-hashtable hash-function equiv))
   (lambda args
-    (define key (apply args-to-key-proc args))
+    (define key args)
     (define cached-result (hashtable-ref cache key 'cache:not-exists))
     (if (or (not caching?) (eq? cached-result 'cache:not-exists))
       (let ((result (apply proc args)))
@@ -77,11 +77,9 @@
 
 (define-syntax define-memoized
   (syntax-rules ()
-    ((_ (name . args) args-to-key-proc expr expr* ...)
+    ((_ hash-function equiv (name . args) expr expr* ...)
       (define name
-        (memoized-proc
-          args-to-key-proc
-          (lambda args expr expr* ...))))))
+        (memoized-proc hash-function equiv (lambda args expr expr* ...))))))
 
 (define placement-indices
   (let loop ((f 0) (r 0) (result '()))
@@ -187,7 +185,8 @@
       ((or (= piece-moving B) (= piece-moving b)) "B")
       ((or (= piece-moving Q) (= piece-moving q)) "Q")
       ((or (= piece-moving R) (= piece-moving r)) "R")
-      ((or (= piece-moving K) (= piece-moving k)) "K")))
+      ((or (= piece-moving K) (= piece-moving k)) "K")
+      (else (debug))))
   (define rank-str
     (call/cc
       (lambda (cont)
@@ -334,7 +333,7 @@
   (define en-passant (list-ref position position-index-en-passant))
   (define halfmoves (list-ref position position-index-halfmoves))
   (define fullmoves (list-ref position position-index-fullmoves))
-  (define placement-list (bytevector-u8->list placement))
+  (define placement-list (bytevector->u8-list placement))
   (define placement-chars
     (let loop ((r 7) (result '()) (placement-list placement-list))
       (if (= r -1)
@@ -342,8 +341,6 @@
         (loop
           (1- r)
           (append
-            result
-            (list #\/)
             (reverse
               (fold-left
                 (lambda (previous piece)
@@ -361,12 +358,14 @@
                              (else (cons #\1 previous))))))
                     (else (cons (piece->char piece) previous))))
                 '()
-                (take placement-list 8))))
+                (take placement-list 8)))
+            (if (= r 7) (list) (list #\/))
+            result)
           (drop placement-list 8)))))
   (apply
     string
     (append
-      (cdr placement-chars) ; The cdr is to remove the leading slash
+      placement-chars
       (list #\ )
       (symbol->chars active-color)
       (list #\ )
@@ -575,17 +574,25 @@
     ((position move-seq)
       (display-move-seq position move-seq))))
 
-(define-memoized (available-moves-from-position position dont-allow-exposed-king)
-  (lambda (position dont-allow-exposed-king)
-    (list
-      (list-ref position position-index-placement)
-      (list-ref position position-index-active-color)
-      (list-ref position position-index-castling)
-      (list-ref position position-index-en-passant)
-      (list-ref position position-index-halfmoves)
-      (list-ref position position-index-fullmoves)
-      dont-allow-exposed-king))
-  ;(hash-set! positions-that-were-expanded-for-moves position 1)
+(define-memoized
+    (lambda (args)
+      (let ((position (car args)) (dont-allow-exposed-king (cadr args)))
+        (string-hash
+          (string-append
+            (encode-fen position)
+            (if dont-allow-exposed-king "t" "f")))))
+    (lambda (left-args right-args)
+      (let* (
+          (position-left (car left-args))
+          (dont-allow-exposed-king-left (cadr left-args))
+          (position-right (car right-args))
+          (dont-allow-exposed-king-right (cadr right-args)))
+        (and
+          (eq? dont-allow-exposed-king-left dont-allow-exposed-king-right)
+          (string=?
+            (encode-fen position-left)
+            (encode-fen position-right)))))
+    (available-moves-from-position position dont-allow-exposed-king)
   (define placement (list-ref position position-index-placement))
   (define active-color (list-ref position position-index-active-color))
   (apply append
@@ -823,13 +830,13 @@
 
 (define (main)
   (define position
-    (decode-fen fen-mate-in-2))
+    (decode-fen simple-position))
 
   (display-evaluation
     position
    (evaluate-position-at-ply
      position
-     1.0)
+     5/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

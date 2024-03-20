@@ -9,6 +9,8 @@
   minabs-index
   proc-prepend-arg
   index
+  take
+  drop
   take-n-or-fewer
   string-split
   first
