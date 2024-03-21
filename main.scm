@@ -190,7 +190,7 @@
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
-            (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
+            (when (and (not (eq? piece P)) (not (eq? piece p)))
               (when (eq? piece piece-moving)
                 (when (= (car coords) (car sq-from))
                   ; When same type of piece on same file.
@@ -211,7 +211,7 @@
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
-            (when (and (not (eq? piece 'P)) (not (eq? piece 'p)))
+            (when (and (not (eq? piece P)) (not (eq? piece p)))
               (when (eq? piece piece-moving)
                 (when (not (= (car coords) (car sq-from)))
                   ; When same type of piece on different file.
@@ -591,8 +591,8 @@
   (define capture? (piece-at-coords? placement coords-to))
   (define pawn-move?
     (or
-      (eq? piece-moving 'P)
-      (eq? piece-moving 'p)))
+      (eq? piece-moving P)
+      (eq? piece-moving p)))
   (define new-placement (bytevector-copy placement))
   (bytevector-u8-set! new-placement
     (placement-index (car coords-from) (cadr coords-from)) E)
@@ -807,17 +807,17 @@
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
 (define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
-(define simple-position "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
+(define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
 (define (main)
   (define position
-    (decode-fen "kr6/nbr5/N7/8/8/8/7K/8 w - - 0 1"))
+    (decode-fen fen-mate-in-2))
 
   (display-evaluation
     position
    (evaluate-position-at-ply
      position
-     4/2)
+     3/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
