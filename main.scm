@@ -190,8 +190,8 @@
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
-            (when (and (not (eq? piece P)) (not (eq? piece p)))
-              (when (eq? piece piece-moving)
+            (when (and (not (= piece P)) (not (= piece p)))
+              (when (= piece piece-moving)
                 (when (= (car coords) (car sq-from))
                   ; When same type of piece on same file.
                   (when (not (equal? coords sq-from))
@@ -211,8 +211,8 @@
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
-            (when (and (not (eq? piece P)) (not (eq? piece p)))
-              (when (eq? piece piece-moving)
+            (when (and (not (= piece P)) (not (= piece p)))
+              (when (= piece piece-moving)
                 (when (not (= (car coords) (car sq-from)))
                   ; When same type of piece on different file.
                   (when (not (equal? coords sq-from))
@@ -430,21 +430,21 @@
 (define (toggle-active-color position)
   (define active-color (list-ref position position-index-active-color))
   (define new-position (list-copy position))
-  (list-set! new-position 1 (if (eq? active-color 'w) 'b 'w))
+  (list-set! new-position 1 (if (symbol=? active-color 'w) 'b 'w))
   new-position)
 
 (define (is-position-check? position-in)
   (define position (toggle-active-color position-in))
   (define placement (list-ref position position-index-placement))
   (define king-to-capture
-    (if (eq? (list-ref position position-index-active-color) 'w) 14 6)) 
+    (if (symbol=? (list-ref position position-index-active-color) 'w) 14 6)) 
   (define moves (available-moves-from-position position #t))
   (call/cc
     (lambda (cont)
       (for-each
         (lambda (move)
           (when
-            (eq?
+            (=
               (piece-at-coords placement (cadr move))
               king-to-capture)
             (cont #t)
@@ -481,9 +481,9 @@
 (define (can-king-be-captured? position)
   (define placement (list-ref position position-index-placement))
   (define active-color (list-ref position position-index-active-color))
-  (define king (if (eq? active-color 'w) k K))
+  (define king (if (symbol=? active-color 'w) k K))
   (define is-piece-of-active-color?
-    (if (eq? active-color 'w) white-piece? black-piece?))
+    (if (symbol=? active-color 'w) white-piece? black-piece?))
   (call/cc
     (lambda (cont)
       (for-each
@@ -498,10 +498,10 @@
   (define placement (list-ref position position-index-placement))
   (define color
     (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
-  (define forward-direction (if (eq? color 'w) 'u 'd))
-  (define forward-right-direction (if (eq? color 'w) 'ur 'dl))
-  (define forward-left-direction (if (eq? color 'w) 'ul 'dr))
-  (define initial-rank (if (eq? color 'w) 1 6))
+  (define forward-direction (if (symbol=? color 'w) 'u 'd))
+  (define forward-right-direction (if (symbol=? color 'w) 'ur 'dl))
+  (define forward-left-direction (if (symbol=? color 'w) 'ul 'dr))
+  (define initial-rank (if (symbol=? color 'w) 1 6))
   (append
     (available-squares-along-directions
       coords position
@@ -571,8 +571,8 @@
             (list coords-from coords-to))
           (if
             (or
-              (and (eq? active-color 'w) (white-piece? piece))
-              (and (eq? active-color 'b) (black-piece? piece)))
+              (and (symbol=? active-color 'w) (white-piece? piece))
+              (and (symbol=? active-color 'b) (black-piece? piece)))
             (available-squares-from-coords
                 coords-from position dont-allow-exposed-king)
             '())))
@@ -591,8 +591,8 @@
   (define capture? (piece-at-coords? placement coords-to))
   (define pawn-move?
     (or
-      (eq? piece-moving P)
-      (eq? piece-moving p)))
+      (= piece-moving P)
+      (= piece-moving p)))
   (define new-placement (bytevector-copy placement))
   (bytevector-u8-set! new-placement
     (placement-index (car coords-from) (cadr coords-from)) E)
@@ -608,7 +608,7 @@
       (1+ (list-ref position position-index-halfmoves)))
     (+
       (list-ref position position-index-fullmoves)
-      (if (eq? (list-ref position position-index-active-color) 'b) 1 0))))
+      (if (symbol=? (list-ref position position-index-active-color) 'b) 1 0))))
 
 (define (piece-base-value piece)
   (cond
@@ -631,7 +631,7 @@
   (cond
     ((is-position-checkmate? position)
       (
-        (if (eq? active-color 'w) - +)
+        (if (symbol=? active-color 'w) - +)
         +inf.0))
     ((is-position-stalemate? position)
       0)
@@ -676,7 +676,7 @@
                 (cons move '()))
             ; Pick only the best continuation for the opponent.
               (let ((sel-proc
-                  (if (eq? (list-ref position position-index-active-color) 'w)
+                  (if (symbol=? (list-ref position position-index-active-color) 'w)
                     first last)))
                 (let* (
                     (val-move-seq (sel-proc eval-obj))
@@ -728,11 +728,11 @@
       (first-iter #t))
     (define active-color (list-ref position position-index-active-color))
     (unless (null? move-seq)
-      (when (or (eq? active-color 'w) first-iter)
+      (when (or (symbol=? active-color 'w) first-iter)
         (display move-number)
         (display ".")
         (display " "))
-      (when (eq? active-color 'b)
+      (when (symbol=? active-color 'b)
         (when first-iter
           (display "...")
           (display " ")))
@@ -740,7 +740,7 @@
       (display " ")
       (loop
         (position-after-move position (car move-seq))
-        (if (eq? active-color 'b)
+        (if (symbol=? active-color 'b)
           (1+ move-number)
           move-number)
         (cdr move-seq)
@@ -749,7 +749,7 @@
 (define (display-evaluation position eval-obj)
   (define active-color (list-ref position position-index-active-color))
   (define sorted-according-to-active-color
-    (if (eq? active-color 'w) (reverse eval-obj) eval-obj))
+    (if (symbol=? active-color 'w) (reverse eval-obj) eval-obj))
   (let loop ((ls sorted-according-to-active-color))
     (unless (null? ls)
       (let ((val-move-seq (car ls)))
@@ -817,7 +817,7 @@
     position
    (evaluate-position-at-ply
      position
-     3/2)
+     1/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
