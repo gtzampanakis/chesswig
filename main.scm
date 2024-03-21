@@ -645,6 +645,18 @@
               (piece-base-value piece))
             placement))))))
 
+(define (available-captures-for-position position)
+  (filter
+    (lambda (move)
+      (define coords-to (cadr move))
+      (define placement (list-ref position position-index-placement))
+      (define active-color (list-ref position position-index-active-color))
+      (enemy-piece-at-coords? placement coords-to active-color))
+    (available-moves-from-position position #t)))
+
+(define (is-position-quiescent? position)
+  (null? (available-captures-for-position position)))
+
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
 
@@ -676,20 +688,23 @@
         (lambda (left-ls right-ls)
           (let ((left-val (car left-ls)) (right-val (car right-ls)))
             (cond
-              ((and (infinite? left-val) (infinite? right-val))
-                (if (< left-val 0)
-              ; When comparing two won sequences for black the
-              ; best for black is the one where black wins in
-              ; the fewest moves.
-                  (<
-                    (length (cadr left-ls))
-                    (length (cadr right-ls)))
-              ; When comparing two won sequences for white the
-              ; best for black is the one where white wins in
-              ; the most moves.
-                  (>
-                    (length (cadr left-ls))
-                    (length (cadr right-ls)))))
+              ((and
+                (infinite? left-val)
+                (infinite? right-val)
+                (= left-val right-val))
+                  (if (< left-val 0)
+                ; When comparing two won sequences for black the
+                ; best for black is the one where black wins in
+                ; the fewest moves.
+                    (<
+                      (length (cadr left-ls))
+                      (length (cadr right-ls)))
+                ; When comparing two won sequences for white the
+                ; best for black is the one where white wins in
+                ; the most moves.
+                    (>
+                      (length (cadr left-ls))
+                      (length (cadr right-ls)))))
               (else (< left-val right-val)))))
         unsorted))))
 
@@ -796,13 +811,13 @@
 
 (define (main)
   (define position
-    (decode-fen "kr6/nb6/N7/8/8/8/7K/8 w - - 0 1"))
+    (decode-fen "kr6/nbr5/N7/8/8/8/7K/8 w - - 0 1"))
 
   (display-evaluation
     position
    (evaluate-position-at-ply
      position
-     2/2)
+     4/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
