@@ -436,7 +436,8 @@
 (define (is-position-check? position-in)
   (define position (toggle-active-color position-in))
   (define placement (list-ref position position-index-placement))
-  (define king-to-capture (if (eq? (list-ref position position-index-active-color) 'w) 'k 'K)) 
+  (define king-to-capture
+    (if (eq? (list-ref position position-index-active-color) 'w) 14 6)) 
   (define moves (available-moves-from-position position #t))
   (call/cc
     (lambda (cont)
@@ -558,25 +559,7 @@
           unchecked-for-checks)))
     unchecked-for-checks))
 
-(define-memoized
-    ;(lambda (args)
-    ;  (let ((position (car args)) (dont-allow-exposed-king (cadr args)))
-    ;    (string-hash
-    ;      (string-append
-    ;        (encode-fen position)
-    ;        (if dont-allow-exposed-king "t" "f")))))
-    ;(lambda (left-args right-args)
-    ;  (let* (
-    ;      (position-left (car left-args))
-    ;      (dont-allow-exposed-king-left (cadr left-args))
-    ;      (position-right (car right-args))
-    ;      (dont-allow-exposed-king-right (cadr right-args)))
-    ;    (and
-    ;      (eq? dont-allow-exposed-king-left dont-allow-exposed-king-right)
-    ;      (string=?
-    ;        (encode-fen position-left)
-    ;        (encode-fen position-right)))))
-    equal-hash equal?
+(define-memoized equal-hash equal?
     (available-moves-from-position position dont-allow-exposed-king)
   (define placement (list-ref position position-index-placement))
   (define active-color (list-ref position position-index-active-color))
@@ -649,7 +632,7 @@
     ((is-position-checkmate? position)
       (
         (if (eq? active-color 'w) - +)
-        (inf)))
+        +inf.0))
     ((is-position-stalemate? position)
       0)
     (else
@@ -813,13 +796,13 @@
 
 (define (main)
   (define position
-    (decode-fen simple-position))
+    (decode-fen "kr6/nb6/N7/8/8/8/7K/8 w - - 0 1"))
 
   (display-evaluation
     position
    (evaluate-position-at-ply
      position
-     6/2)
+     2/2)
     )
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
