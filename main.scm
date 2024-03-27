@@ -172,13 +172,16 @@
     (file-to-alg (car sq))
     (rank-to-alg (cadr sq))))
 
+(define (is-move-capture? placement move)
+  (piece-at-coords? placement (cadr move)))
+
 (define (move-to-alg position move)
   (define sq-from (car move))
   (define sq-to (cadr move))
   (define sq-to-str (square-to-alg sq-to))
   (define placement (position-placement position))
   (define piece-moving (piece-at-coords placement sq-from))
-  (define capture? (piece-at-coords? placement sq-to))
+  (define capture? (is-move-capture? placement move))
   (define capture-str (if capture? "x" ""))
   (define piece-moving-str
     (cond
@@ -445,7 +448,7 @@
   (define placement (position-placement position))
   (define king-to-capture
     (if (symbol=? (position-active-color position) 'w) 14 6)) 
-  (define moves (available-moves-from-position position #t))
+  (define moves (available-moves-from-position position))
   (call/cc
     (lambda (cont)
       (for-each
@@ -461,12 +464,12 @@
 
 (define (is-position-checkmate? position)
   (and
-    (null? (available-moves-from-position position #t))
+    (null? (available-moves-from-position position))
     (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (null? (available-moves-from-position position #t))
+    (null? (available-moves-from-position position))
     (not (is-position-check? position))))
 
 (define (available-squares-for-rook coords position)
@@ -566,24 +569,27 @@
           unchecked-for-checks)))
     unchecked-for-checks))
 
-(define-memoized equal-hash equal?
-    (available-moves-from-position position dont-allow-exposed-king)
-  (define placement (position-placement position))
-  (define active-color (position-active-color position))
-  (apply append
-    (map-over-placement
-      (lambda (piece coords-from)
-        (map
-          (lambda (coords-to)
-            (list coords-from coords-to))
-          (if
-            (or
-              (and (symbol=? active-color 'w) (white-piece? piece))
-              (and (symbol=? active-color 'b) (black-piece? piece)))
-            (available-squares-from-coords
-                coords-from position dont-allow-exposed-king)
-            '())))
-      placement)))
+(define available-moves-from-position
+  (memoized-proc equal-hash equal?
+    (case-lambda
+      ((position) (available-moves-from-position position #t))
+      ((position dont-allow-exposed-king)
+        (define placement (position-placement position))
+        (define active-color (position-active-color position))
+        (apply append
+          (map-over-placement
+            (lambda (piece coords-from)
+              (map
+                (lambda (coords-to)
+                  (list coords-from coords-to))
+                (if
+                  (or
+                    (and (symbol=? active-color 'w) (white-piece? piece))
+                    (and (symbol=? active-color 'b) (black-piece? piece)))
+                  (available-squares-from-coords
+                      coords-from position dont-allow-exposed-king)
+                  '())))
+            placement))))))
 
 (define (toggled-color color)
   (case color
@@ -659,7 +665,7 @@
       (define placement (position-placement position))
       (define active-color (position-active-color position))
       (enemy-piece-at-coords? placement coords-to active-color))
-    (available-moves-from-position position #t)))
+    (available-moves-from-position position)))
 
 (define (is-position-quiescent? position)
   (null? (available-captures-for-position position)))
@@ -667,7 +673,7 @@
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
 
-(define (predicate-for-eval-objs left-ls right-ls)
+(define (less-predicate-for-eval-objs left-ls right-ls)
   (let ((left-val (car left-ls)) (right-val (car right-ls)))
     (cond
       ((and
@@ -729,7 +735,7 @@
 
 (define (display-evaluation position eval-obj)
   (define active-color (position-active-color position))
-  (define sorted-by-val (sort predicate-for-eval-objs eval-obj))
+  (define sorted-by-val (sort less-predicate-for-eval-objs eval-obj))
   (define sorted-according-to-active-color
     (if (symbol=? active-color 'w) (reverse sorted-by-val) sorted-by-val))
   (let loop ((ls sorted-according-to-active-color))
@@ -777,30 +783,50 @@
                 (cons coords result))))))
       directions)))
 
-(define (evaluate-position-at-ply position ply)
-  (define moves (delay (available-moves-from-position position #t)))
-  (if (or (= ply 0) (null? (force moves)))
-    (list
-      (list (evaluate-position-static position) '()))
-    (let ((unsorted
-        (map
-          (lambda (move)
-            ; This procedure takes a move and returns an eval-obj i.e.  a list
-            ; L of lists M with M = (evaluation move-seq-until-ply)
-            (define new-pos (position-after-move position move))
-            (define eval-obj
-              (evaluate-position-at-ply new-pos (- ply 0.5)))
-            (let ((sel-proc
+(define (evaluate-position-until-quiescence position)
+  (define static (evaluate-position-static position))
+  (if (is-position-quiescent? position)
+    static
+    (let* (
+        (active-color (position-active-color position))
+        (proc (if (symbol=? active-color 'w) min max)))
+      (proc
+        static
+        (car (car (evaluate-position position 9999 #t)))))))
+
+(define evaluate-position
+  (case-lambda
+    ((position ply) (evaluate-position position ply #f))
+    ((position ply only-captures)
+      (define moves
+        (delay
+          (let ((placement (delay (position-placement position))))
+            (filter
+              (lambda (move)
+                (if only-captures
+                  (is-move-capture? (force placement) move) #t))
+              (available-moves-from-position position)))))
+      (if (or (= ply 0) (null? (force moves)))
+        (list
+          (list (evaluate-position-static position) '()))
+        (let ((unsorted
+          (map
+            (lambda (move)
+              ; This procedure takes a move and returns an eval-obj i.e.  a list
+              ; L of lists M with M = (evaluation move-seq-until-ply)
+              (define new-pos (position-after-move position move))
+              (define eval-obj
+                (evaluate-position new-pos (- ply 0.5) only-captures))
+              ; Pick only the best continuation for the opponent.
+              (define sel-proc
                 (if (symbol=? (position-active-color position) 'w)
-                  first last)))
-            ; Pick only the best continuation for the opponent.
-              (let* (
-                  (val-move-seq (sel-proc eval-obj))
-                  (val (car val-move-seq))
-                  (move-seq (cadr val-move-seq)))
-                (list val (cons move move-seq)))))
-          (force moves))))
-      (sort predicate-for-eval-objs unsorted))))
+                    first last))
+              (define val-move-seq (sel-proc eval-obj))
+              (define val (car val-move-seq))
+              (define move-seq (cadr val-move-seq))
+              (list val (cons move move-seq)))
+            (force moves))))
+          (sort less-predicate-for-eval-objs unsorted))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
@@ -809,7 +835,6 @@
     (display " ")
     (display-move-seq-from-position position)
     (newline)))
-
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
@@ -822,7 +847,8 @@
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 2/2))
+    (evaluate-position position 2/2))
+  ;(evaluate-position-until-quiescence position)
 
   (exit)
 

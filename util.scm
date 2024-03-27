@@ -143,14 +143,4 @@
     (let ((s (time-second t)) (n (time-nanosecond t)))
       (+ s (/ n 1000000000)))))
 
-;; target: (match prune-strategy
-;;           ((ply-factor ply-factor) (keep-moves-factor keep-moves-factor))
-;
-;(call-with-prune-strategy-ply-factor-keep-moves-factor
-;  
-;
-;(define-syntax match
-;  (syntax-rules ()
-    
-
 )
