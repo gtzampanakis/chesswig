@@ -735,18 +735,15 @@
 
 (define (display-evaluation position eval-obj)
   (define active-color (position-active-color position))
-  (define sorted-by-val (sort less-predicate-for-eval-objs eval-obj))
-  (define sorted-according-to-active-color
-    (if (symbol=? active-color 'w) (reverse sorted-by-val) sorted-by-val))
-  (let loop ((ls sorted-according-to-active-color))
-    (unless (null? ls)
-      (let ((val-move-seq (car ls)))
+  (let loop ((eval-obj eval-obj))
+    (unless (null? eval-obj)
+      (let ((val-move-seq (car eval-obj)))
         (let ((val (car val-move-seq)) (move-seq (cadr val-move-seq)))
           (display-val val)
           (display " ")
           (display-move-seq position move-seq)
           (newline)
-          (loop (cdr ls)))))))
+          (loop (cdr eval-obj)))))))
 
 (define (available-squares-along-directions
           coords position directions
@@ -818,15 +815,13 @@
               (define eval-obj
                 (evaluate-position new-pos (- ply 0.5) only-captures))
               ; Pick only the best continuation for the opponent.
-              (define sel-proc
-                (if (symbol=? (position-active-color position) 'w)
-                    first last))
-              (define val-move-seq (sel-proc eval-obj))
+              (define val-move-seq (first eval-obj))
               (define val (car val-move-seq))
               (define move-seq (cadr val-move-seq))
               (list val (cons move move-seq)))
             (force moves))))
-          (sort less-predicate-for-eval-objs unsorted))))))
+          (let ((asc (sort less-predicate-for-eval-objs unsorted)))
+            (if (eq? (position-active-color position) 'w) (reverse asc) asc)))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
