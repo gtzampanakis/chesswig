@@ -778,29 +778,28 @@
       directions)))
 
 (define (evaluate-position-at-ply position ply)
-  (if (= ply 0)
+  (define moves (delay (available-moves-from-position position #t)))
+  (if (or (= ply 0) (null? (force moves)))
     (list
       (list (evaluate-position-static position) '()))
     (let ((unsorted
         (map
           (lambda (move)
+            ; This procedure takes a move and returns an eval-obj i.e.  a list
+            ; L of lists M with M = (evaluation move-seq-until-ply)
             (define new-pos (position-after-move position move))
             (define eval-obj
               (evaluate-position-at-ply new-pos (- ply 0.5)))
-            (if (null? eval-obj)
-              (list
-                (evaluate-position-static new-pos)
-                (cons move '()))
+            (let ((sel-proc
+                (if (symbol=? (position-active-color position) 'w)
+                  first last)))
             ; Pick only the best continuation for the opponent.
-              (let ((sel-proc
-                  (if (symbol=? (position-active-color position) 'w)
-                    first last)))
-                (let* (
-                    (val-move-seq (sel-proc eval-obj))
-                    (val (car val-move-seq))
-                    (move-seq (cadr val-move-seq)))
-                  (list val (cons move move-seq))))))
-          (available-moves-from-position position #t))))
+              (let* (
+                  (val-move-seq (sel-proc eval-obj))
+                  (val (car val-move-seq))
+                  (move-seq (cadr val-move-seq)))
+                (list val (cons move move-seq)))))
+          (force moves))))
       (sort predicate-for-eval-objs unsorted))))
 
 (define (display-position position)
@@ -823,7 +822,7 @@
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 3/2))
+    (evaluate-position-at-ply position 2/2))
 
   (exit)
 
