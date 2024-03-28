@@ -25,6 +25,8 @@
 (define position-index-en-passant 3)
 (define position-index-halfmoves 4)
 (define position-index-fullmoves 5)
+(define position-index-moves 6)
+(define position-index-moves-w-exp-k 7)
 
 (define (position-placement p) (list-ref p position-index-placement))
 (define (position-active-color p) (list-ref p position-index-active-color))
@@ -32,6 +34,8 @@
 (define (position-en-passant p) (list-ref p position-index-en-passant))
 (define (position-halfmoves p) (list-ref p position-index-halfmoves))
 (define (position-fullmoves p) (list-ref p position-index-fullmoves))
+(define (position-moves p) (list-ref p position-index-moves))
+(define (position-moves-w-exp-k p) (list-ref p position-index-moves-w-exp-k))
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
@@ -309,10 +313,29 @@
 (define (decode-fullmoves fullmoves-string)
   (string->number fullmoves-string))
 
+(define (make-position placement active-color castling
+                        en-passant halfmoves fullmoves)
+  (define pos (list placement active-color castling
+                      en-passant halfmoves fullmoves))
+  (append pos
+    (list
+      (delay (available-moves-from-position pos))
+      (delay (available-moves-from-position pos #f)))))
+
+(define (position-copy-w-toggled-active-color position)
+  (let ((color (position-active-color position)))
+    (make-position
+      (position-placement position)
+      (if (symbol=? color 'w) 'b 'w)
+      (position-castling position)
+      (position-en-passant position)
+      (position-halfmoves position)
+      (position-fullmoves position))))
+
 (define (decode-fen fen-string)
   (let ((field-strings (string-split fen-string #\ )))
     (let ((placement (decode-placement-data (list-ref field-strings 0))))
-      (list
+      (make-position
         placement
         (decode-active-color (list-ref field-strings 1))
         (decode-castling (list-ref field-strings 2))
@@ -437,18 +460,12 @@
 (define (piece-at-coords? placement coords)
   (not (= (piece-at-coords placement coords) E)))
 
-(define (toggle-active-color position)
-  (define active-color (position-active-color position))
-  (define new-position (list-copy position))
-  (list-set! new-position 1 (if (symbol=? active-color 'w) 'b 'w))
-  new-position)
-
 (define (is-position-check? position-in)
-  (define position (toggle-active-color position-in))
+  (define position (position-copy-w-toggled-active-color position-in))
   (define placement (position-placement position))
   (define king-to-capture
     (if (symbol=? (position-active-color position) 'w) 14 6)) 
-  (define moves (available-moves-from-position position))
+  (define moves (force (position-moves position)))
   (call/cc
     (lambda (cont)
       (for-each
@@ -464,12 +481,12 @@
 
 (define (is-position-checkmate? position)
   (and
-    (null? (available-moves-from-position position))
+    (null? (force (position-moves position)))
     (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (null? (available-moves-from-position position))
+    (null? (force (position-moves position)))
     (not (is-position-check? position))))
 
 (define (available-squares-for-rook coords position)
@@ -501,7 +518,7 @@
           (when (= (piece-at-coords placement (cadr move)) king)
             (cont #t)
             (exit)))
-        (available-moves-from-position position #f))
+        (force (position-moves-w-exp-k position)))
       #f)))
 
 (define (available-squares-for-pawn coords position)
@@ -570,26 +587,25 @@
     unchecked-for-checks))
 
 (define available-moves-from-position
-  (memoized-proc equal-hash equal?
-    (case-lambda
-      ((position) (available-moves-from-position position #t))
-      ((position dont-allow-exposed-king)
-        (define placement (position-placement position))
-        (define active-color (position-active-color position))
-        (apply append
-          (map-over-placement
-            (lambda (piece coords-from)
-              (map
-                (lambda (coords-to)
-                  (list coords-from coords-to))
-                (if
-                  (or
-                    (and (symbol=? active-color 'w) (white-piece? piece))
-                    (and (symbol=? active-color 'b) (black-piece? piece)))
-                  (available-squares-from-coords
-                      coords-from position dont-allow-exposed-king)
-                  '())))
-            placement))))))
+  (case-lambda
+    ((position) (available-moves-from-position position #t))
+    ((position dont-allow-exposed-king)
+      (define placement (position-placement position))
+      (define active-color (position-active-color position))
+      (apply append
+        (map-over-placement
+          (lambda (piece coords-from)
+            (map
+              (lambda (coords-to)
+                (list coords-from coords-to))
+              (if
+                (or
+                  (and (symbol=? active-color 'w) (white-piece? piece))
+                  (and (symbol=? active-color 'b) (black-piece? piece)))
+                (available-squares-from-coords
+                    coords-from position dont-allow-exposed-king)
+                '())))
+          placement)))))
 
 (define (toggled-color color)
   (case color
@@ -611,7 +627,7 @@
     (placement-index (car coords-from) (cadr coords-from)) E)
   (bytevector-u8-set! new-placement
     (placement-index (car coords-to) (cadr coords-to)) piece-moving)
-  (list
+  (make-position
     new-placement
     (toggled-color (position-active-color position))
     (position-castling position)
@@ -665,7 +681,7 @@
       (define placement (position-placement position))
       (define active-color (position-active-color position))
       (enemy-piece-at-coords? placement coords-to active-color))
-    (available-moves-from-position position)))
+    (force (position-moves position))))
 
 (define (is-position-quiescent? position)
   (null? (available-captures-for-position position)))
@@ -802,7 +818,7 @@
               (lambda (move)
                 (if only-captures
                   (is-move-capture? (force placement) move) #t))
-              (available-moves-from-position position)))))
+              (force (position-moves position))))))
       (if (or (= ply 0) (null? (force moves)))
         (list
           (list (evaluate-position-static position) '()))
@@ -833,7 +849,7 @@
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
-(define fen-mate-in-2 "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 0")
+(define fen-mate-in-2 "r1b2k1r/ppp1bppp/8/1B1Q4/5q2/2P5/PPP2PPP/R3R1K1 w - - 1 0")
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
 (define (main)
@@ -842,7 +858,7 @@
 
   (display-evaluation
     position
-    (evaluate-position position 2/2))
+    (evaluate-position position 3/2))
   ;(evaluate-position-until-quiescence position)
 
   (exit)
