@@ -27,6 +27,8 @@
 (define position-index-fullmoves 5)
 (define position-index-moves 6)
 (define position-index-moves-w-exp-k 7)
+(define position-index-static-val 8)
+(define position-index-check 9)
 
 (define (position-placement p) (list-ref p position-index-placement))
 (define (position-active-color p) (list-ref p position-index-active-color))
@@ -36,6 +38,8 @@
 (define (position-fullmoves p) (list-ref p position-index-fullmoves))
 (define (position-moves p) (list-ref p position-index-moves))
 (define (position-moves-w-exp-k p) (list-ref p position-index-moves-w-exp-k))
+(define (position-static-val p) (list-ref p position-index-static-val))
+(define (position-check? p) (list-ref p position-index-check))
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
@@ -245,7 +249,7 @@
   (define check-or-checkmate-str
     (cond
       ((is-position-checkmate? next-position) "#")
-      ((is-position-check? next-position) "+")
+      ((position-check? next-position) "+")
       (else "")))
   (define result
     (string-append
@@ -315,14 +319,23 @@
 
 (define (make-position placement active-color castling
                         en-passant halfmoves fullmoves)
-  (define pos (list placement active-color castling
-                      en-passant halfmoves fullmoves))
-  (append pos
+  (define pos
     (list
+      placement
+      active-color
+      castling
+      en-passant
+      halfmoves
+      fullmoves
       (delay (available-moves-from-position pos))
-      (delay (available-moves-from-position pos #f)))))
+      (delay (available-moves-from-position pos #f))
+      (delay (evaluate-position-static pos))
+      (delay (is-position-check? pos))))
+  pos)
 
 (define (position-copy-w-toggled-active-color position)
+; think cases where toggling the active color results in an invalid position,
+; for example when a check exists.
   (let ((color (position-active-color position)))
     (make-position
       (position-placement position)
@@ -482,12 +495,12 @@
 (define (is-position-checkmate? position)
   (and
     (null? (force (position-moves position)))
-    (is-position-check? position)))
+    (force (position-check? position))))
 
 (define (is-position-stalemate? position)
   (and
     (null? (force (position-moves position)))
-    (not (is-position-check? position))))
+    (not (force (position-check? position)))))
 
 (define (available-squares-for-rook coords position)
   (available-squares-along-directions
@@ -674,17 +687,54 @@
               (piece-base-value piece))
             placement))))))
 
-(define (available-captures-for-position position)
-  (filter
-    (lambda (move)
-      (define coords-to (cadr move))
-      (define placement (position-placement position))
-      (define active-color (position-active-color position))
-      (enemy-piece-at-coords? placement coords-to active-color))
-    (force (position-moves position))))
+(define available-captures-from-position
+  (case-lambda
+    ((position) available-captures-from-position -1)
+    ((position limit)
+      (let loop (
+          (result '())
+          (len 0)
+          (moves (force (position-moves position))))
+        (if (or (= len limit) (null? moves)) result
+          (let ((move (car moves)))
+            (apply
+              loop
+              (let (
+                  (coords-to (cadr move))
+                  (placement (position-placement position))
+                  (active-color (position-active-color position)))
+                (if (enemy-piece-at-coords? placement coords-to active-color)
+                  (list (cons move result) (1+ len) (cdr moves))
+                  (list result len (cdr moves)))))))))))
 
 (define (is-position-quiescent? position)
-  (null? (available-captures-for-position position)))
+  (and
+    (null?
+      (available-captures-from-position position 1))
+    (null?
+      (available-captures-from-position
+        (position-copy-w-toggled-active-color position) 1))
+    ; If a position is check it means toggling the active color does have the
+    ; "capture" of king but because the position is invalid it won't be found.
+    ; It is not reasonable to treat checks as quiescent, therefore place this
+    ; check but place it last for performance reasons.
+    (not (force (position-check? position)))))
+
+(define (evaluate-position-until-quiescence position)
+  (if (is-position-quiescent? position)
+    (evaluate-position-static position)
+    ; Play a game Each player can either pass or play a move that has one or
+    ; more of the following traits:
+    ; * is a capture
+    ; * is a check
+    ; * is a checkmate
+    ; * is a stalemate
+    ; * any move (if in check)
+    ; The game ends on checkmate, on stalemate or when both players have passed
+    ; in which case the winner is decided by a static evaluation of the
+    ; position.
+    ; I should also be allowed to cover hanging pieces...
+    ))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
@@ -796,48 +846,59 @@
                 (cons coords result))))))
       directions)))
 
-(define (evaluate-position-until-quiescence position)
-  (define static (evaluate-position-static position))
-  (if (is-position-quiescent? position)
-    static
-    (let* (
-        (active-color (position-active-color position))
-        (proc (if (symbol=? active-color 'w) min max)))
-      (proc
-        static
-        (car (car (evaluate-position position 9999 #t)))))))
+(define (moves-filter-pred-all-moves position move)
+  #t)
 
-(define evaluate-position
+(define (moves-filter-pred-disrupting-moves position move)
+  (let (
+      (gain
+        (- (force (position-static-val position))
+            (evaluate-position-static (position-after-move position move)))))
+    (>= gain 1.0)))
+
+(define evaluate-position-at-ply
   (case-lambda
-    ((position ply) (evaluate-position position ply #f))
-    ((position ply only-captures)
+    ((position ply)
+      (evaluate-position-at-ply position ply moves-filter-pred-all-moves))
+    ((position ply moves-filter-pred)
       (define moves
         (delay
           (let ((placement (delay (position-placement position))))
             (filter
               (lambda (move)
-                (if only-captures
-                  (is-move-capture? (force placement) move) #t))
+                (moves-filter-pred position move))
               (force (position-moves position))))))
-      (if (or (= ply 0) (null? (force moves)))
-        (list
-          (list (evaluate-position-static position) '()))
-        (let ((unsorted
-          (map
-            (lambda (move)
-              ; This procedure takes a move and returns an eval-obj i.e.  a list
-              ; L of lists M with M = (evaluation move-seq-until-ply)
-              (define new-pos (position-after-move position move))
-              (define eval-obj
-                (evaluate-position new-pos (- ply 0.5) only-captures))
-              ; Pick only the best continuation for the opponent.
-              (define val-move-seq (first eval-obj))
-              (define val (car val-move-seq))
-              (define move-seq (cadr val-move-seq))
-              (list val (cons move move-seq)))
-            (force moves))))
-          (let ((asc (sort less-predicate-for-eval-objs unsorted)))
-            (if (eq? (position-active-color position) 'w) (reverse asc) asc)))))))
+      (cond
+        ((= ply 0)
+          (if (eq? moves-filter-pred moves-filter-pred-all-moves)
+            (evaluate-position-at-ply
+              position 30 moves-filter-pred-disrupting-moves)
+            ;(list
+            ;  (list (evaluate-position-static position) '()))
+            (list
+              (list (evaluate-position-static position) '()))))
+        ((null? (force moves))
+          (list
+            (list (evaluate-position-static position) '())))
+        (else
+          (let ((unsorted
+            (map
+              (lambda (move)
+                ; This procedure takes a move and returns an eval-obj i.e.  a
+                ; list L of lists M with M = (evaluation move-seq-until-ply)
+                (define new-pos (position-after-move position move))
+                (define eval-obj
+                  (evaluate-position-at-ply
+                    new-pos (- ply 0.5) moves-filter-pred))
+                ; Pick only the best continuation for the opponent.
+                (define val-move-seq (first eval-obj))
+                (define val (car val-move-seq))
+                (define move-seq (cadr val-move-seq))
+                (list val (cons move move-seq)))
+              (force moves))))
+            (let ((asc (sort less-predicate-for-eval-objs unsorted)))
+              (if (eq? (position-active-color position) 'w)
+                (reverse asc) asc))))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
@@ -858,39 +919,13 @@
 
   (display-evaluation
     position
-    (evaluate-position position 3/2))
-  ;(evaluate-position-until-quiescence position)
+    (evaluate-position-at-ply position 1/2))
+
+  ;(d (evaluate-position-until-quiescence position))
 
   (exit)
 
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(for-each
-  ;  display-position
-  ;  (hash-map->list
-  ;    (lambda (position _) position)
-  ;    positions-that-were-expanded-for-moves))
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;(d (hash-count (lambda (k v) #t) positions-that-were-expanded-for-moves))
-
   )
 
-;(define (main)
-;  (define position (decode-fen fen-initial))
-;  (define loops 10000)
-;  (define t0 (seconds-since-epoch))
-;  (define t1 -1)
-;  (let outer-loop ((i loops))
-;    (when (> i 0)
-;      (available-moves-from-position position #t)
-;      ;(for-each d (available-squares-for-knight (list 0 1) position))
-;      ;(d (next-coords-in-direction (list 1 0) 'nul))
-;      (outer-loop (1- i))))
-;  (set! t1 (seconds-since-epoch))
-;  (display (* 1000.0 (/ (- t1 t0) loops)))
-;  (display " ms per loop, ")
-;  (display loops)
-;  (display " loops")
-;  (newline)
-;)
 
 (main)
