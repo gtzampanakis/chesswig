@@ -870,44 +870,38 @@
     ((position ply)
       (evaluate-position-at-ply position ply admit-all))
     ((position ply admissible-moves-pred)
-      (define all-moves
-        (let ((placement (delay (position-placement position))))
-          (force (position-moves position))))
-      (define admissible-moves
-        (let loop ((t '()) (all-moves all-moves))
-          (if (null? all-moves)
-            t
-            (loop
-              (if (admissible-moves-pred position (car all-moves))
-                (cons (car all-moves) t)
-                t)
-              (cdr all-moves)))))
       (sort-eval-obj position
-        (cond
-          ((= ply 0)
-            (cons
-              (list (evaluate-position-static position) '())
-              (if (eq? admissible-moves-pred admit-all)
-                (evaluate-position-at-ply position 60/2 admit-disruptive)
-                '())))
-          ((null? admissible-moves)
-            (list
-              (list (evaluate-position-static position) '())))
-          (else
-            (map
-              (lambda (move)
-                ; This procedure takes a move and returns an eval-obj i.e.  a
-                ; list L of lists M with M = (evaluation move-seq-until-ply)
-                (define new-pos (position-after-move position move))
-                (define eval-obj
-                  (evaluate-position-at-ply
-                    new-pos (- ply 0.5) admissible-moves-pred))
-                ; Pick only the best continuation for the opponent.
-                (define val-move-seq (first eval-obj))
-                (define val (car val-move-seq))
-                (define move-seq (cadr val-move-seq))
-                (list val (cons move move-seq)))
-              admissible-moves)))))))
+        (if (= ply 0)
+          (cons
+            (list (evaluate-position-static position) '())
+            (if (eq? admissible-moves-pred admit-all)
+              ; Break early when no admissible moves remain, do not go to full
+              ; ply (it appears you do)
+              (evaluate-position-at-ply position 4/2 admit-disruptive) '()))
+          (let* (
+              (all-moves (force (position-moves position)))
+              (admissible-moves
+                (filter
+                  (lambda (move)
+                    (admissible-moves-pred position move))
+                  all-moves)))
+            (if (null? admissible-moves)
+              (list
+                (list (evaluate-position-static position) '()))
+              (map
+                (lambda (move)
+                  ; This procedure takes a move and returns an eval-obj i.e.  a
+                  ; list L of lists M with M = (evaluation move-seq-until-ply)
+                  (define new-pos (position-after-move position move))
+                  (define eval-obj
+                    (evaluate-position-at-ply
+                      new-pos (- ply 0.5) admissible-moves-pred))
+                  ; Pick only the best continuation for the opponent.
+                  (define val-move-seq (first eval-obj))
+                  (define val (car val-move-seq))
+                  (define move-seq (cadr val-move-seq))
+                  (list val (cons move move-seq)))
+                admissible-moves))))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
@@ -924,11 +918,11 @@
 
 (define (main)
   (define position
-    (decode-fen "k7/6b1/5b2/4b3/3p4/P1B5/1B6/BK6 w - - 0 1"))
+    (decode-fen fen-mate-in-2))
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 2/2 admit-all))
+    (evaluate-position-at-ply position 0/2 admit-all))
 
 
   (exit)
