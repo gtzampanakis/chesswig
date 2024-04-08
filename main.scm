@@ -742,30 +742,29 @@
 ; ((val move-seq) ...)
 
 (define (less-predicate-for-eval-objs left-ls right-ls)
-  (let (
-      (left-val (car left-ls))
-      (left-move-seq (cadr left-ls))
-      (right-val (car right-ls))
-      (right-move-seq (cadr right-ls)))
-    (cond
-      ((and
-        (infinite? left-val)
-        (infinite? right-val)
-        (= left-val right-val))
-          (if (< left-val 0)
-        ; When comparing two won sequences for black the
-        ; best for black is the one where black wins in
-        ; the fewest moves.
-            (<
-              (length left-move-seq)
-              (length right-move-seq))
-        ; When comparing two won sequences for white the
-        ; best for black is the one where white wins in
-        ; the most moves.
-            (>
-              (length left-move-seq)
-              (length right-move-seq))))
-      (else (< left-val right-val)))))
+  (match left-ls
+    ((,left-val ,left-move-seq)
+      (match right-ls
+        ((,right-val ,right-move-seq)
+          (cond
+            ((and
+              (infinite? left-val)
+              (infinite? right-val)
+              (= left-val right-val))
+                (if (< left-val 0)
+              ; When comparing two won sequences for black the
+              ; best for black is the one where black wins in
+              ; the fewest moves.
+                  (<
+                    (length left-move-seq)
+                    (length right-move-seq))
+              ; When comparing two won sequences for white the
+              ; best for black is the one where white wins in
+              ; the most moves.
+                  (>
+                    (length left-move-seq)
+                    (length right-move-seq))))
+            (else (< left-val right-val))))))))
 
 (define (display-val val)
   (cond
@@ -809,8 +808,8 @@
   (define active-color (position-active-color position))
   (let loop ((eval-obj eval-obj))
     (unless (null? eval-obj)
-      (let ((val-move-seq (car eval-obj)))
-        (let ((val (car val-move-seq)) (move-seq (cadr val-move-seq)))
+      (match (car eval-obj)
+        ((,val ,move-seq)
           (display-val val)
           (display " ")
           (if (null? move-seq)
@@ -903,13 +902,9 @@
                 (evaluate-position-at-ply
                   new-pos (- ply 0.5) admissible-moves-pred))
               ; Pick only the best continuation for the opponent.
-              (define val-move-seq (first eval-obj))
-              (define val (car val-move-seq))
-              (define move-seq (cadr val-move-seq))
-              ;(d (encode-fen position))
-              ;(display-move-seq position (cons move move-seq))
-              ;(newline)
-              (list val (cons move move-seq)))
+              (match (first eval-obj)
+                ((,val ,move-seq)
+                  (list val (cons move move-seq)))))
             admissible-moves))))))
 
 (define evaluate-position-at-ply
@@ -946,7 +941,6 @@
   (display-evaluation
     position
     (evaluate-position-at-ply position 0/2))
-
 
   (exit)
 
