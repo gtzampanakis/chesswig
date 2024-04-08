@@ -1,4 +1,4 @@
-(import (util))
+(import (match match) (util))
 
 (define positions-that-were-expanded-for-moves (make-eq-hashtable))
 
@@ -941,7 +941,7 @@
 
 (define (main)
   (define position
-    (decode-fen "k6b/p5b1/3p1p2/4r3/3P4/2B5/KB6/B7 w - - 0 1"))
+    (decode-fen "k7/1b2n3/8/3q4/8/1Q3B2/8/K7 w - - 0 1"))
 
   (display-evaluation
     position

@@ -1,3 +1,7 @@
 #!/bin/bash
 
-time chezscheme --optimize-level 0 --debug-on-exception --script main.scm
+time chezscheme \
+  --libdirs .:lib \
+  --optimize-level 3 \
+  --debug-on-exception \
+  --script main.scm
