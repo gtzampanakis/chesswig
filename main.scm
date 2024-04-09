@@ -3,7 +3,7 @@
 (define positions-that-were-expanded-for-moves (make-eq-hashtable))
 
 (define caching? #t)
-(define quiescence-search? #t)
+(define quiescence-search? #f)
 
 (define E 0)
 (define R 2)
@@ -33,6 +33,7 @@
 (define position-index-static-val 7)
 (define position-index-eval-at-ply 8)
 (define position-index-check 9)
+(define position-index-can-king-be-captured 10)
 
 (define (position-placement p) (list-ref p position-index-placement))
 (define (position-active-color p) (list-ref p position-index-active-color))
@@ -332,6 +333,7 @@
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
+      (make-hashtable equal-hash equal?)
       ))
   pos)
 
@@ -522,21 +524,23 @@
   (available-squares-along-directions
       coords position '(u ur r dr d dl l ul) 1 #t #t))
 
-(define (can-king-be-captured? position)
-  (define placement (position-placement position))
-  (define active-color (position-active-color position))
-  (define king (if (symbol=? active-color 'w) k K))
-  (define is-piece-of-active-color?
-    (if (symbol=? active-color 'w) white-piece? black-piece?))
-  (call/cc
-    (lambda (cont)
-      (for-each
-        (lambda (move)
-          (when (= (piece-at-coords placement (cadr move)) king)
-            (cont #t)
-            (exit)))
-        (available-moves-from-position position #f))
-      #f)))
+(define can-king-be-captured?
+  (memoized-proc position-index-can-king-be-captured
+    (lambda (position)
+      (define placement (position-placement position))
+      (define active-color (position-active-color position))
+      (define king (if (symbol=? active-color 'w) k K))
+      (define is-piece-of-active-color?
+        (if (symbol=? active-color 'w) white-piece? black-piece?))
+      (call/cc
+        (lambda (cont)
+          (for-each
+            (lambda (move)
+              (when (= (piece-at-coords placement (cadr move)) king)
+                (cont #t)
+                (exit)))
+            (available-moves-from-position position #f))
+          #f)))))
 
 (define (available-squares-for-pawn coords position)
   (define placement (position-placement position))
@@ -847,8 +851,6 @@
                 (cons coords result))))))
       directions)))
 
-(define admit-all 'admit-all)
-
 (define (admit-disruptive position move)
   (let (
       (gain
@@ -866,10 +868,15 @@
 (define (evaluate-position-at-nonzero-ply position ply admissible-moves-pred)
   (let (
       (all-moves (available-moves-from-position position))
-      (pred (lambda (move) (admissible-moves-pred position move))))
+      (pred
+        (cond
+          ((symbol=? admissible-moves-pred 'admit-all)
+            'admit-all)
+          ((symbol=? admissible-moves-pred 'admit-disruptive)
+            (lambda (move) (admit-disruptive position move))))))
     (let-values (
         ((admissible-moves inadmissible-moves)
-          (if (eq? admissible-moves-pred admit-all)
+          (if (symbol=? pred 'admit-all)
             (values all-moves '())
             (partition pred all-moves))))
       (if (null? admissible-moves)
@@ -906,8 +913,8 @@
     (lambda (position ply admissible-moves-pred)
       (sort-eval-obj position
         (if (= ply 0)
-          (if (and (eq? admissible-moves-pred admit-all) quiescence-search?)
-            (evaluate-position-at-ply position 60/2 admit-disruptive)
+          (if (and (eq? admissible-moves-pred 'admit-all) quiescence-search?)
+            (evaluate-position-at-ply position 60/2 'admit-disruptive)
             (list
               (list (evaluate-position-static position) '())))
           (evaluate-position-at-nonzero-ply
@@ -928,11 +935,11 @@
 
 (define (main)
   (define position
-    (decode-fen fen-mate-in-2))
+    (decode-fen "k7/1b2n3/8/3q4/8/1Q3B2/8/K7 w - - 0 1"))
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 3/2 admit-all))
+    (evaluate-position-at-ply position 3/2 'admit-all))
 
   (exit)
 
