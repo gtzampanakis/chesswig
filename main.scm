@@ -2,8 +2,8 @@
 
 (define positions-that-were-expanded-for-moves (make-eq-hashtable))
 
-(define profile? #f)
 (define caching? #t)
+(define quiescence-search? #t)
 
 (define E 0)
 (define R 2)
@@ -19,15 +19,19 @@
 (define k 14)
 (define p 9)
 
+; To add a cache promise define the position index, the procedure and add the
+; relevant section to the make-position procedure.
 (define position-index-placement 0)
 (define position-index-active-color 1)
 (define position-index-castling 2)
 (define position-index-en-passant 3)
 (define position-index-halfmoves 4)
 (define position-index-fullmoves 5)
+
+; Cache positions
 (define position-index-moves 6)
-(define position-index-moves-w-exp-k 7)
-(define position-index-static-val 8)
+(define position-index-static-val 7)
+(define position-index-eval-at-ply 8)
 (define position-index-check 9)
 
 (define (position-placement p) (list-ref p position-index-placement))
@@ -36,10 +40,6 @@
 (define (position-en-passant p) (list-ref p position-index-en-passant))
 (define (position-halfmoves p) (list-ref p position-index-halfmoves))
 (define (position-fullmoves p) (list-ref p position-index-fullmoves))
-(define (position-moves p) (list-ref p position-index-moves))
-(define (position-moves-w-exp-k p) (list-ref p position-index-moves-w-exp-k))
-(define (position-static-val p) (list-ref p position-index-static-val))
-(define (position-check? p) (list-ref p position-index-check))
 
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
@@ -79,22 +79,21 @@
     ((= piece k) #\k)
     ((= piece p) #\p)))
 
-(define (memoized-proc hash-function equiv proc)
-  (define cache (make-hashtable hash-function equiv))
+(define (memoized-proc hash-index proc)
+; Memoization that stores its data inside the first argument. This allows to
+; have a separate cache for each position which means that we do not need to
+; cache the first argument which might be expensive because of its complexity.
+; It also causes positions to be garbage collected together with their caches.
   (lambda args
-    (define key args)
-    (define cached-result (hashtable-ref cache key 'cache:not-exists))
-    (if (or (not caching?) (eq? cached-result 'cache:not-exists))
-      (let ((result (apply proc args)))
-        (hashtable-set! cache key result)
-        result)
-      cached-result)))
-
-(define-syntax define-memoized
-  (syntax-rules ()
-    ((_ hash-function equiv (name . args) expr expr* ...)
-      (define name
-        (memoized-proc hash-function equiv (lambda args expr expr* ...))))))
+    (if (not caching?)
+      (apply proc args)
+      (let ((h (list-ref (car args) hash-index)))
+        (let ((cached-result (hashtable-ref h (cdr args) 'cache:not-exists)))
+          (if (eq? cached-result 'cache:not-exists)
+            (let ((result (apply proc args)))
+              (hashtable-set! h (cdr args) result)
+              result)
+            cached-result))))))
 
 (define placement-indices
   (let loop ((f 0) (r 0) (result '()))
@@ -251,7 +250,7 @@
   (define check-or-checkmate-str
     (cond
       ((is-position-checkmate? next-position) "#")
-      ((force (position-check? next-position)) "+")
+      ((is-position-check? next-position) "+")
       (else "")))
   (define result
     (string-append
@@ -329,10 +328,11 @@
       en-passant
       halfmoves
       fullmoves
-      (delay (available-moves-from-position pos))
-      (delay (available-moves-from-position pos #f))
-      (delay (evaluate-position-static pos))
-      (delay (is-position-check? pos))))
+      (make-hashtable equal-hash equal?)
+      (make-hashtable equal-hash equal?)
+      (make-hashtable equal-hash equal?)
+      (make-hashtable equal-hash equal?)
+      ))
   pos)
 
 (define (position-copy-w-toggled-active-color position)
@@ -475,34 +475,36 @@
 (define (piece-at-coords? placement coords)
   (not (= (piece-at-coords placement coords) E)))
 
-(define (is-position-check? position-in)
-  (define position (position-copy-w-toggled-active-color position-in))
-  (define placement (position-placement position))
-  (define king-to-capture
-    (if (symbol=? (position-active-color position) 'w) 14 6)) 
-  (define moves (force (position-moves position)))
-  (call/cc
-    (lambda (cont)
-      (for-each
-        (lambda (move)
-          (when
-            (=
-              (piece-at-coords placement (cadr move))
-              king-to-capture)
-            (cont #t)
-            (exit)))
-        moves)
-      #f)))
+(define is-position-check?
+  (memoized-proc position-index-check
+    (lambda (position-in)
+      (define position (position-copy-w-toggled-active-color position-in))
+      (define placement (position-placement position))
+      (define king-to-capture
+        (if (symbol=? (position-active-color position) 'w) 14 6)) 
+      (define moves (available-moves-from-position position))
+      (call/cc
+        (lambda (cont)
+          (for-each
+            (lambda (move)
+              (when
+                (=
+                  (piece-at-coords placement (cadr move))
+                  king-to-capture)
+                (cont #t)
+                (exit)))
+            moves)
+          #f)))))
 
 (define (is-position-checkmate? position)
   (and
-    (null? (force (position-moves position)))
-    (force (position-check? position))))
+    (null? (available-moves-from-position position))
+    (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (null? (force (position-moves position)))
-    (not (force (position-check? position)))))
+    (null? (available-moves-from-position position))
+    (not (is-position-check? position))))
 
 (define (available-squares-for-rook coords position)
   (available-squares-along-directions
@@ -533,7 +535,7 @@
           (when (= (piece-at-coords placement (cadr move)) king)
             (cont #t)
             (exit)))
-        (force (position-moves-w-exp-k position)))
+        (available-moves-from-position position #f))
       #f)))
 
 (define (available-squares-for-pawn coords position)
@@ -605,6 +607,12 @@
   (case-lambda
     ((position) (available-moves-from-position position #t))
     ((position dont-allow-exposed-king)
+      (available-moves-from-position-full-args
+            position dont-allow-exposed-king))))
+
+(define available-moves-from-position-full-args
+  (memoized-proc position-index-moves
+    (lambda (position dont-allow-exposed-king)
       (define placement (position-placement position))
       (define active-color (position-active-color position))
       (apply append
@@ -670,24 +678,26 @@
     ((= piece K) +999999)
     ((= piece k) -999999)))
 
-(define (evaluate-position-static position)
-  (define active-color (position-active-color position))
-  (cond
-    ((is-position-checkmate? position)
-      (
-        (if (symbol=? active-color 'w) - +)
-        +inf.0))
-    ((is-position-stalemate? position)
-      0)
-    (else
-      (let ((placement (position-placement position)))
-        (fold-left
-          +
-          0
-          (map-over-placement
-            (lambda (piece coords)
-              (piece-base-value piece))
-            placement))))))
+(define evaluate-position-static
+  (memoized-proc position-index-static-val
+    (lambda (position)
+      (define active-color (position-active-color position))
+      (cond
+        ((is-position-checkmate? position)
+          (
+            (if (symbol=? active-color 'w) - +)
+            +inf.0))
+        ((is-position-stalemate? position)
+          0)
+        (else
+          (let ((placement (position-placement position)))
+            (fold-left
+              +
+              0
+              (map-over-placement
+                (lambda (piece coords)
+                  (piece-base-value piece))
+                placement))))))))
 
 (define available-captures-from-position
   (case-lambda
@@ -696,7 +706,7 @@
       (let loop (
           (result '())
           (len 0)
-          (moves (force (position-moves position))))
+          (moves (available-moves-from-position position)))
         (if (or (= len limit) (null? moves)) result
           (let ((move (car moves)))
             (apply
@@ -720,23 +730,7 @@
     ; "capture" of king but because the position is invalid it won't be found.
     ; It is not reasonable to treat checks as quiescent, therefore place this
     ; check but place it last for performance reasons.
-    (not (force (position-check? position)))))
-
-(define (evaluate-position-until-quiescence position)
-  (if (is-position-quiescent? position)
-    (evaluate-position-static position)
-    ; Play a game Each player can either pass or play a move that has one or
-    ; more of the following traits:
-    ; * is a capture
-    ; * is a check
-    ; * is a checkmate
-    ; * is a stalemate
-    ; * any move (if in check)
-    ; The game ends on checkmate, on stalemate or when both players have passed
-    ; in which case the winner is decided by a static evaluation of the
-    ; position.
-    ; I should also be allowed to cover hanging pieces...
-    ))
+    (not (is-position-check? position))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
@@ -859,7 +853,7 @@
   (let (
       (gain
         (- (evaluate-position-static (position-after-move position move))
-           (force (position-static-val position)))))
+           (evaluate-position-static position))))
     (if (symbol=? (position-active-color position) 'w)
       (>= gain 1.0)
       (<= gain -1.0))))
@@ -871,7 +865,7 @@
 
 (define (evaluate-position-at-nonzero-ply position ply admissible-moves-pred)
   (let (
-      (all-moves (force (position-moves position)))
+      (all-moves (available-moves-from-position position))
       (pred (lambda (move) (admissible-moves-pred position move))))
     (let-values (
         ((admissible-moves inadmissible-moves)
@@ -908,13 +902,11 @@
             admissible-moves))))))
 
 (define evaluate-position-at-ply
-  (case-lambda
-    ((position ply)
-      (evaluate-position-at-ply position ply admit-all))
-    ((position ply admissible-moves-pred)
+  (memoized-proc position-index-eval-at-ply
+    (lambda (position ply admissible-moves-pred)
       (sort-eval-obj position
         (if (= ply 0)
-          (if (eq? admissible-moves-pred admit-all)
+          (if (and (eq? admissible-moves-pred admit-all) quiescence-search?)
             (evaluate-position-at-ply position 60/2 admit-disruptive)
             (list
               (list (evaluate-position-static position) '())))
@@ -936,11 +928,11 @@
 
 (define (main)
   (define position
-    (decode-fen "k7/1b2n3/8/3q4/8/1Q3B2/8/K7 w - - 0 1"))
+    (decode-fen fen-mate-in-2))
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 0/2))
+    (evaluate-position-at-ply position 3/2 admit-all))
 
   (exit)
 
