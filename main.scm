@@ -941,9 +941,6 @@
     position
     (evaluate-position-at-ply position 3/2 'admit-all))
 
-  (exit)
-
   )
-
 
 (main)
