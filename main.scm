@@ -3,7 +3,7 @@
 (define positions-that-were-expanded-for-moves (make-eq-hashtable))
 
 (define caching? #t)
-(define quiescence-search? #f)
+(define quiescence-search? #t)
 
 (define E 0)
 (define R 2)
@@ -935,11 +935,11 @@
 
 (define (main)
   (define position
-    (decode-fen "k7/1b2n3/8/3q4/8/1Q3B2/8/K7 w - - 0 1"))
+    (decode-fen fen-mate-in-2))
 
   (display-evaluation
     position
-    (evaluate-position-at-ply position 3/2 'admit-all))
+    (evaluate-position-at-ply position 0/2 'admit-all))
 
   )
 
