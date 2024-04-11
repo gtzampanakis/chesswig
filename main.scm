@@ -1,7 +1,5 @@
 (import (match match) (util))
 
-(define positions-that-were-expanded-for-moves (make-eq-hashtable))
-
 (define caching? #t)
 (define quiescence-search? #t)
 
@@ -18,6 +16,9 @@
 (define q 13)
 (define k 14)
 (define p 9)
+
+; TODO: maybe the pattern matcher we are using is making things slow. Replace
+; the pattern matcher with normal code and see if it makes any difference.
 
 ; To add a cache promise define the position index, the procedure and add the
 ; relevant section to the make-position procedure.
@@ -48,7 +49,10 @@
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
 
-(define should-do-quiescence-search? #t)
+(define positions-examined
+  (make-hashtable string-hash string=?))
+
+(define track-positions-examined? #f)
 
 (define (char->piece char)
   (case char
@@ -79,6 +83,11 @@
     ((= piece q) #\q)
     ((= piece k) #\k)
     ((= piece p) #\p)))
+
+(define (move-seq-item-val move-seq-item)
+  (list-ref move-seq-item 0))
+(define (move-seq-item-move-seq move-seq-item)
+  (list-ref move-seq-item 1))
 
 (define (memoized-proc hash-index proc)
 ; Memoization that stores its data inside the first argument. This allows to
@@ -206,7 +215,7 @@
       ((or (= piece-moving K) (= piece-moving k)) "K")
       (else (debug))))
   (define rank-str
-    (call/cc
+    (call/1cc
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
@@ -227,7 +236,7 @@
           placement)
         "")))
   (define file-str
-    (call/cc
+    (call/1cc
       (lambda (cont)
         (for-each-over-placement
           (lambda (piece coords)
@@ -335,6 +344,8 @@
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
       ))
+  (when track-positions-examined?
+    (hashtable-set! positions-examined (encode-fen pos) 1))
   pos)
 
 (define (position-copy-w-toggled-active-color position)
@@ -427,38 +438,64 @@
       (list #\ )
       (string->list (number->string fullmoves)))))
 
-(define (next-coords-in-direction coords direction)
-  (let* (
-      (f (car coords)) (r (cadr coords))
-      (provisional
+(define (next-coords-in-direction-dis coords direction)
+  (let-values (((prov-f prov-r)
+      (let* (
+          (f (car coords))
+          (r (cadr coords)))
         (case direction
-          ((u) (list f (1+ r)))
-          ((r) (list (1+ f) r))
-          ((d) (list f (1- r)))
-          ((l) (list (1- f) r))
-          ((ur) (list (1+ f) (1+ r)))
-          ((dr) (list (1+ f) (1- r)))
-          ((dl) (list (1- f) (1- r)))
-          ((ul) (list (1- f) (1+ r)))
+          ((u) (values f (1+ r)))
+          ((r) (values (1+ f) r))
+          ((d) (values f (1- r)))
+          ((l) (values (1- f) r))
+          ((ur) (values (1+ f) (1+ r)))
+          ((dr) (values (1+ f) (1- r)))
+          ((dl) (values (1- f) (1- r)))
+          ((ul) (values (1- f) (1+ r)))
           ; Knight directions: The first character gives the
           ; two-square movement and the second character the
           ; one-square move. For example, 'ndr means "knight move,
           ; first two squares down then one square right".
-          ((nur) (list (+ f 1) (+ r 2)))
-          ((nru) (list (+ f 2) (+ r 1)))
-          ((nrd) (list (+ f 2) (- r 1)))
-          ((ndr) (list (+ f 1) (- r 2)))
-          ((ndl) (list (- f 1) (- r 2)))
-          ((nld) (list (- f 2) (- r 1)))
-          ((nlu) (list (- f 2) (+ r 1)))
-          ((nul) (list (- f 1) (+ r 2)))))
-      (prov-f (car provisional))
-      (prov-r (cadr provisional))
-      (result
-        (if (or (> prov-f 7) (< prov-f 0) (> prov-r 7) (< prov-r 0))
-          '()
-          (list prov-f prov-r))))
-    result))
+          ((nur) (values (+ f 1) (+ r 2)))
+          ((nru) (values (+ f 2) (+ r 1)))
+          ((nrd) (values (+ f 2) (- r 1)))
+          ((ndr) (values (+ f 1) (- r 2)))
+          ((ndl) (values (- f 1) (- r 2)))
+          ((nld) (values (- f 2) (- r 1)))
+          ((nlu) (values (- f 2) (+ r 1)))
+          ((nul) (values (- f 1) (+ r 2)))))))
+    (if (or (> prov-f 7) (< prov-f 0) (> prov-r 7) (< prov-r 0))
+      '()
+      (list prov-f prov-r))))
+
+(define (next-coords-in-direction coords direction)
+  (call/1cc
+    (lambda (cont)
+      (let* (
+          (f-in (car coords))
+          (f
+            (case direction
+              ((u d) f-in)
+              ((r ur dr nur ndr) (+ f-in 1))
+              ((nru nrd) (+ f-in 2))
+              ((l dl ul ndl nul) (- f-in 1))
+              ((nld nlu) (- f-in 2)))))
+        (if (or (> f 7) (< f 0))
+          (begin (cont '()) (exit))
+          (list
+            f
+            (let* (
+                (r-in (cadr coords))
+                (r
+                  (case direction
+                    ((r l) r-in)
+                    ((u ur ul nru nlu) (+ r-in 1))
+                    ((nur nul) (+ r-in 2))
+                    ((d dr dl nrd nld) (- r-in 1))
+                    ((ndr ndl) (- r-in 2)))))
+              (if (or (> r 7) (< r 0))
+                (begin (cont '()) (exit))
+                r))))))))
 
 (define (friendly-piece-at-coords? placement coords color)
   (member
@@ -485,7 +522,7 @@
       (define king-to-capture
         (if (symbol=? (position-active-color position) 'w) 14 6)) 
       (define moves (available-moves-from-position position))
-      (call/cc
+      (call/1cc
         (lambda (cont)
           (for-each
             (lambda (move)
@@ -532,7 +569,7 @@
       (define king (if (symbol=? active-color 'w) k K))
       (define is-piece-of-active-color?
         (if (symbol=? active-color 'w) white-piece? black-piece?))
-      (call/cc
+      (call/1cc
         (lambda (cont)
           (for-each
             (lambda (move)
@@ -741,9 +778,9 @@
 
 (define (less-predicate-for-eval-objs left-ls right-ls)
   (match left-ls
-    ((,left-val ,left-move-seq)
+    ((,left-val ,left-move-seq ,- ...)
       (match right-ls
-        ((,right-val ,right-move-seq)
+        ((,right-val ,right-move-seq ,- ...)
           (cond
             ((and
               (infinite? left-val)
@@ -802,12 +839,11 @@
         (cdr move-seq)
         #f))))
 
-(define (display-evaluation position eval-obj)
-  (define active-color (position-active-color position))
+(define (display-eval-obj position eval-obj)
   (let loop ((eval-obj eval-obj))
     (unless (null? eval-obj)
       (match (car eval-obj)
-        ((,val ,move-seq)
+        ((,val ,move-seq ,- ...)
           (display-val val)
           (display " ")
           (if (null? move-seq)
@@ -865,6 +901,24 @@
     (if (eq? (position-active-color position) 'w)
       (reverse asc) asc)))
 
+(define (combine-move-w-eval-obj move eval-obj)
+  ; This procedure takes a move and returns an eval-obj i.e. a
+  ; list L of lists M with M = (evaluation move-seq-until-ply)
+  ;
+  ; (first) here picks the best continuation for the opponent.
+  (match (first eval-obj)
+    ((,val ,move-seq ,- ...)
+      (list
+        val
+        (cons move move-seq)))))
+
+(define (eval-obj-of-static-eval position)
+  (list
+    (list
+      (evaluate-position-static position) ;eval
+      '() ; move-seq
+      )))
+
 (define (evaluate-position-at-nonzero-ply position ply admissible-moves-pred)
   (let (
       (all-moves (available-moves-from-position position))
@@ -880,8 +934,7 @@
             (values all-moves '())
             (partition pred all-moves))))
       (if (null? admissible-moves)
-        (list
-          (list (evaluate-position-static position) '()))
+        (eval-obj-of-static-eval position)
         (append
           (if (not (null? inadmissible-moves))
           ; Inadmissible moves exist but we will not explore them (after all,
@@ -891,21 +944,16 @@
           ; explore lines where players would be forced to play admissible
           ; moves no matter how bad they are, ignoring the fact that
           ; inadmissible moves might well be better.
-            (list
-              (list (evaluate-position-static position) '()))
+            (eval-obj-of-static-eval position)
             '())
           (map
             (lambda (move)
-              ; This procedure takes a move and returns an eval-obj i.e. a
-              ; list L of lists M with M = (evaluation move-seq-until-ply)
-              (define new-pos (position-after-move position move))
-              (define eval-obj
-                (evaluate-position-at-ply
-                  new-pos (- ply 0.5) admissible-moves-pred))
-              ; Pick only the best continuation for the opponent.
-              (match (first eval-obj)
-                ((,val ,move-seq)
-                  (list val (cons move move-seq)))))
+              (let* (
+                  (new-pos (position-after-move position move))
+                  (eval-obj
+                    (evaluate-position-at-ply
+                      new-pos (- ply 0.5) admissible-moves-pred)))
+                (combine-move-w-eval-obj move eval-obj)))
             admissible-moves))))))
 
 (define evaluate-position-at-ply
@@ -914,9 +962,8 @@
       (sort-eval-obj position
         (if (= ply 0)
           (if (and (eq? admissible-moves-pred 'admit-all) quiescence-search?)
-            (evaluate-position-at-ply position 60/2 'admit-disruptive)
-            (list
-              (list (evaluate-position-static position) '())))
+            (evaluate-position-at-ply position 4/2 'admit-disruptive)
+            (eval-obj-of-static-eval position))
           (evaluate-position-at-nonzero-ply
             position ply admissible-moves-pred))))))
 
@@ -937,9 +984,12 @@
   (define position
     (decode-fen fen-mate-in-2))
 
-  (display-evaluation
+  (display-eval-obj
     position
-    (evaluate-position-at-ply position 0/2 'admit-all))
+    (evaluate-position-at-ply position 1/2 'admit-all))
+
+  (when track-positions-examined?
+    (d "Positions examined:" (hashtable-size positions-examined)))
 
   )
 

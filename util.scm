@@ -16,7 +16,9 @@
   first
   last
   list-set!
-  seconds-since-epoch)
+  seconds-since-epoch
+  argmax
+  )
 (import
   (chezscheme))
 
@@ -142,5 +144,18 @@
   (let ((t (current-time)))
     (let ((s (time-second t)) (n (time-nanosecond t)))
       (+ s (/ n 1000000000)))))
+
+(define (argmax ls less)
+  (let ((h (car ls)) (t (cdr ls)))
+    (if (null? t)
+      h
+      (let ((argmax-t (argmax t less)))
+        (cond
+          ((less h argmax-t)
+            argmax-t)
+          ((less argmax-t h)
+            h)
+          (else
+            h))))))
 
 )
