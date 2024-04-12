@@ -17,13 +17,6 @@
 (define k 14)
 (define p 9)
 
-; TODO: maybe the pattern matcher we are using is making things slow. Replace
-; the pattern matcher with normal code and see if it makes any difference.
-
-; TODO: maybe call/1cc is slow?
-
-; To add a cache promise define the position index, the procedure and add the
-; relevant section to the make-position procedure.
 (define position-index-placement 0)
 (define position-index-active-color 1)
 (define position-index-castling 2)
@@ -541,18 +534,13 @@
       (define king-to-capture
         (if (symbol=? (position-active-color position) 'w) k K)) 
       (define moves (available-moves-from-position position))
-      (call/1cc
-        (lambda (cont)
-          (for-each
-            (lambda (move)
-              (when
-                (=
-                  (piece-at-coords placement (cadr move))
-                  king-to-capture)
-                (cont #t)
-                (exit)))
-            moves)
-          #f)))))
+      (let loop ((moves moves))
+        (if (null? moves)
+          #f
+          (let ((move (car moves)))
+            (if (= (piece-at-coords placement (cadr move)) king-to-capture)
+              #t
+              (loop (cdr moves)))))))))
 
 (define (is-position-checkmate? position)
   (and
@@ -588,15 +576,13 @@
       (define king (if (symbol=? active-color 'w) k K))
       (define is-piece-of-active-color?
         (if (symbol=? active-color 'w) white-piece? black-piece?))
-      (call/1cc
-        (lambda (cont)
-          (for-each
-            (lambda (move)
-              (when (= (piece-at-coords placement (cadr move)) king)
-                (cont #t)
-                (exit)))
-            (available-moves-from-position position #f))
-          #f)))))
+      (let loop ((moves (available-moves-from-position position #f)))
+        (if (null? moves)
+          #f
+          (let ((move (car moves)))
+            (if (= (piece-at-coords placement (cadr move)) king)
+              #t
+              (loop (cdr moves)))))))))
 
 (define (available-squares-for-pawn coords position)
   (define placement (position-placement position))
