@@ -20,6 +20,8 @@
 ; TODO: maybe the pattern matcher we are using is making things slow. Replace
 ; the pattern matcher with normal code and see if it makes any difference.
 
+; TODO: maybe call/1cc is slow?
+
 ; To add a cache promise define the position index, the procedure and add the
 ; relevant section to the make-position procedure.
 (define position-index-placement 0)
@@ -46,6 +48,23 @@
 (define white-pieces (list R N B Q K P))
 (define black-pieces (list r n b q k p))
 (define all-pieces (append white-pieces black-pieces))
+
+(define dir-u 0)
+(define dir-r 1)
+(define dir-d 2)
+(define dir-l 3)
+(define dir-ur 4)
+(define dir-dr 5)
+(define dir-dl 6)
+(define dir-ul 7)
+(define dir-nur 8)
+(define dir-nru 9)
+(define dir-nrd 10)
+(define dir-ndr 11)
+(define dir-ndl 12)
+(define dir-nld 13)
+(define dir-nlu 14)
+(define dir-nul 15)
 
 (define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
 
@@ -438,7 +457,7 @@
       (list #\ )
       (string->list (number->string fullmoves)))))
 
-(define (next-coords-in-direction-dis coords direction)
+(define (next-coords-in-direction coords direction)
   (let-values (((prov-f prov-r)
       (let* (
           (f (car coords))
@@ -468,34 +487,34 @@
       '()
       (list prov-f prov-r))))
 
-(define (next-coords-in-direction coords direction)
-  (call/1cc
-    (lambda (cont)
-      (let* (
-          (f-in (car coords))
-          (f
-            (case direction
-              ((u d) f-in)
-              ((r ur dr nur ndr) (+ f-in 1))
-              ((nru nrd) (+ f-in 2))
-              ((l dl ul ndl nul) (- f-in 1))
-              ((nld nlu) (- f-in 2)))))
-        (if (or (> f 7) (< f 0))
-          (begin (cont '()) (exit))
-          (list
-            f
-            (let* (
-                (r-in (cadr coords))
-                (r
-                  (case direction
-                    ((r l) r-in)
-                    ((u ur ul nru nlu) (+ r-in 1))
-                    ((nur nul) (+ r-in 2))
-                    ((d dr dl nrd nld) (- r-in 1))
-                    ((ndr ndl) (- r-in 2)))))
-              (if (or (> r 7) (< r 0))
-                (begin (cont '()) (exit))
-                r))))))))
+;(define (next-coords-in-direction-dis coords direction)
+;  (call/1cc
+;    (lambda (cont)
+;      (let* (
+;          (f-in (car coords))
+;          (f
+;            (case direction
+;              ((u d) f-in)
+;              ((r ur dr nur ndr) (+ f-in 1))
+;              ((nru nrd) (+ f-in 2))
+;              ((l dl ul ndl nul) (- f-in 1))
+;              ((nld nlu) (- f-in 2)))))
+;        (if (or (> f 7) (< f 0))
+;          (begin (cont '()) (exit))
+;          (list
+;            f
+;            (let* (
+;                (r-in (cadr coords))
+;                (r
+;                  (case direction
+;                    ((r l) r-in)
+;                    ((u ur ul nru nlu) (+ r-in 1))
+;                    ((nur nul) (+ r-in 2))
+;                    ((d dr dl nrd nld) (- r-in 1))
+;                    ((ndr ndl) (- r-in 2)))))
+;              (if (or (> r 7) (< r 0))
+;                (begin (cont '()) (exit))
+;                r))))))))
 
 (define (friendly-piece-at-coords? placement coords color)
   (member
@@ -520,7 +539,7 @@
       (define position (position-copy-w-toggled-active-color position-in))
       (define placement (position-placement position))
       (define king-to-capture
-        (if (symbol=? (position-active-color position) 'w) 14 6)) 
+        (if (symbol=? (position-active-color position) 'w) k K)) 
       (define moves (available-moves-from-position position))
       (call/1cc
         (lambda (cont)
@@ -621,14 +640,14 @@
         ((= piece E) '())
         ((or (= piece P) (= piece p))
           (available-squares-for-pawn coords position))
-        ((or (= piece N) (= piece n))
-          (available-squares-for-knight coords position))
-        ((or (= piece B) (= piece b))
-          (available-squares-for-bishop coords position))
-        ((or (= piece Q) (= piece q))
-          (available-squares-for-queen coords position))
         ((or (= piece R) (= piece r))
           (available-squares-for-rook coords position))
+        ((or (= piece B) (= piece b))
+          (available-squares-for-bishop coords position))
+        ((or (= piece N) (= piece n))
+          (available-squares-for-knight coords position))
+        ((or (= piece Q) (= piece q))
+          (available-squares-for-queen coords position))
         ((or (= piece K) (= piece k))
           (available-squares-for-king coords position)))))
   (if dont-allow-exposed-king
