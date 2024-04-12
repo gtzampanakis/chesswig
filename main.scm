@@ -45,8 +45,8 @@
 (define (position-halfmoves p) (list-ref p position-index-halfmoves))
 (define (position-fullmoves p) (list-ref p position-index-fullmoves))
 
-(define white-pieces (list R N B Q K P))
-(define black-pieces (list r n b q k p))
+(define white-pieces (list P R N B Q K))
+(define black-pieces (list p r n b q k))
 (define all-pieces (append white-pieces black-pieces))
 
 (define dir-u 0)
@@ -66,7 +66,29 @@
 (define dir-nlu 14)
 (define dir-nul 15)
 
-(define knight-directions '(nur nru nrd ndr ndl nld nlu nul))
+(define all-directions 
+  (list
+    dir-u dir-r dir-d dir-l
+    dir-ur dir-dr dir-dl dir-ul
+    dir-nur dir-nru dir-nrd dir-ndr
+    dir-ndl dir-nld dir-nlu dir-nul))
+
+(define knight-directions
+  (list
+    dir-nur dir-nru dir-nrd dir-ndr
+    dir-ndl dir-nld dir-nlu dir-nul))
+
+(define rook-directions
+  (list dir-u dir-r dir-d dir-l))
+
+(define bishop-directions
+  (list dir-ur dir-dr dir-dl dir-ul))
+
+(define queen-directions
+  (list dir-u dir-r dir-d dir-l dir-ur dir-dr dir-dl dir-ul))
+
+(define king-directions
+  (list dir-u dir-r dir-d dir-l dir-ur dir-dr dir-dl dir-ul))
 
 (define positions-examined
   (make-hashtable string-hash string=?))
@@ -103,10 +125,16 @@
     ((= piece k) #\k)
     ((= piece p) #\p)))
 
-(define (move-seq-item-val move-seq-item)
-  (list-ref move-seq-item 0))
-(define (move-seq-item-move-seq move-seq-item)
-  (list-ref move-seq-item 1))
+; cls means: "coords list" and it's a list of file and rank.
+; coords means: a number encoding a cls
+(define (coords-to-cls coords)
+  (let-values (((q rem) (div-and-mod coords 8)))
+    (let ((f rem) (r q))
+      (list f r))))
+
+(define (cls-to-coords cls)
+  (let ((f (car cls)) (r (cadr cls)))
+    (+ (* 8 r) f)))
 
 (define (memoized-proc hash-index proc)
 ; Memoization that stores its data inside the first argument. This allows to
@@ -124,36 +152,22 @@
               result)
             cached-result))))))
 
-(define placement-indices
-  (let loop ((f 0) (r 0) (result '()))
-    (if (> r 7)
-      result
-      (loop
-        (if (= f 7)
-          0
-          (1+ f))
-        (if (= f 7)
-          (1+ r)
-          r)
-        (cons (list f r) result)))))
+(define all-coords (iota 64))
 
-(define (placement-index f r)
-  (+ (* 8 r) f))
-
-(define (placement-ref placement f r)
-  (bytevector-u8-ref placement (placement-index f r)))
+(define (placement-ref placement coords)
+  (bytevector-u8-ref placement coords))
 
 (define (map-over-placement proc placement)
   (map
     (lambda (coords)
-      (proc (placement-ref placement (car coords) (cadr coords)) coords))
-    placement-indices))
+      (proc (placement-ref placement coords) coords))
+    all-coords))
 
 (define (for-each-over-placement proc placement)
   (for-each
     (lambda (coords)
-      (proc (placement-ref placement (car coords) (cadr coords)) coords))
-    placement-indices))
+      (proc (placement-ref placement coords) coords))
+    all-coords))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -207,8 +221,8 @@
 
 (define (square-to-alg sq)
   (string-append
-    (file-to-alg (car sq))
-    (rank-to-alg (cadr sq))))
+    (file-to-alg (car (coords-to-cls sq)))
+    (rank-to-alg (cadr (coords-to-cls sq)))))
 
 (define (is-move-capture? placement move)
   (piece-at-coords? placement (cadr move)))
@@ -225,7 +239,7 @@
     (cond
       ((or (= piece-moving P) (= piece-moving p))
         (if capture?
-          (file-to-alg (car sq-from))
+          (file-to-alg (car (coords-to-cls sq-from)))
           ""))
       ((or (= piece-moving N) (= piece-moving n)) "N")
       ((or (= piece-moving B) (= piece-moving b)) "B")
@@ -240,7 +254,7 @@
           (lambda (piece coords)
             (when (and (not (= piece P)) (not (= piece p)))
               (when (= piece piece-moving)
-                (when (= (car coords) (car sq-from))
+                (when (= (car (coords-to-cls coords)) (car (coords-to-cls sq-from)))
                   ; When same type of piece on same file.
                   (when (not (equal? coords sq-from))
                     (for-each
@@ -248,7 +262,7 @@
                         (when (equal? sq sq-to)
                           (cont
                             (rank-to-alg
-                              (cadr sq-from)))
+                              (cadr (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
                          coords position #t)))))))
@@ -261,7 +275,7 @@
           (lambda (piece coords)
             (when (and (not (= piece P)) (not (= piece p)))
               (when (= piece piece-moving)
-                (when (not (= (car coords) (car sq-from)))
+                (when (not (= (car (coords-to-cls coords)) (car (coords-to-cls sq-from))))
                   ; When same type of piece on different file.
                   (when (not (equal? coords sq-from))
                     (for-each
@@ -269,7 +283,7 @@
                         (when (equal? sq sq-to)
                           (cont
                             (file-to-alg
-                              (car sq-from)))
+                              (car (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
                          coords position #t)))))))
@@ -297,11 +311,6 @@
 (define (black-piece? piece)
   (member piece black-pieces))
 
-(define file-coords
-  (apply append (make-list 8 (list 0 1 2 3 4 5 6 7))))
-(define rank-coords
-  (apply append (map (lambda (f) (make-list 8 f)) (list 0 1 2 3 4 5 6 7))))
-
 (define (decode-rank rank-string)
   (fold-left
     (lambda (current-result char)
@@ -318,7 +327,7 @@
     (string->list rank-string)))
 
 (define (piece-at-coords placement coords)
-  (placement-ref placement (car coords) (cadr coords)))
+  (placement-ref placement coords))
 
 (define (decode-placement-data placement-data-string)
   (u8-list->bytevector
@@ -457,64 +466,55 @@
       (list #\ )
       (string->list (number->string fullmoves)))))
 
-(define (next-coords-in-direction coords direction)
+(define (calc-next-coords-in-direction coords direction)
   (let-values (((prov-f prov-r)
       (let* (
-          (f (car coords))
-          (r (cadr coords)))
-        (case direction
-          ((u) (values f (1+ r)))
-          ((r) (values (1+ f) r))
-          ((d) (values f (1- r)))
-          ((l) (values (1- f) r))
-          ((ur) (values (1+ f) (1+ r)))
-          ((dr) (values (1+ f) (1- r)))
-          ((dl) (values (1- f) (1- r)))
-          ((ul) (values (1- f) (1+ r)))
+          (f (car (coords-to-cls coords)))
+          (r (cadr (coords-to-cls coords))))
+        (cond
+          ((= direction dir-u) (values f (1+ r)))
+          ((= direction dir-r) (values (1+ f) r))
+          ((= direction dir-d) (values f (1- r)))
+          ((= direction dir-l) (values (1- f) r))
+          ((= direction dir-ur) (values (1+ f) (1+ r)))
+          ((= direction dir-dr) (values (1+ f) (1- r)))
+          ((= direction dir-dl) (values (1- f) (1- r)))
+          ((= direction dir-ul) (values (1- f) (1+ r)))
           ; Knight directions: The first character gives the
           ; two-square movement and the second character the
           ; one-square move. For example, 'ndr means "knight move,
           ; first two squares down then one square right".
-          ((nur) (values (+ f 1) (+ r 2)))
-          ((nru) (values (+ f 2) (+ r 1)))
-          ((nrd) (values (+ f 2) (- r 1)))
-          ((ndr) (values (+ f 1) (- r 2)))
-          ((ndl) (values (- f 1) (- r 2)))
-          ((nld) (values (- f 2) (- r 1)))
-          ((nlu) (values (- f 2) (+ r 1)))
-          ((nul) (values (- f 1) (+ r 2)))))))
+          ((= direction dir-nur) (values (+ f 1) (+ r 2)))
+          ((= direction dir-nru) (values (+ f 2) (+ r 1)))
+          ((= direction dir-nrd) (values (+ f 2) (- r 1)))
+          ((= direction dir-ndr) (values (+ f 1) (- r 2)))
+          ((= direction dir-ndl) (values (- f 1) (- r 2)))
+          ((= direction dir-nld) (values (- f 2) (- r 1)))
+          ((= direction dir-nlu) (values (- f 2) (+ r 1)))
+          ((= direction dir-nul) (values (- f 1) (+ r 2)))))))
     (if (or (> prov-f 7) (< prov-f 0) (> prov-r 7) (< prov-r 0))
       '()
-      (list prov-f prov-r))))
+      (cls-to-coords (list prov-f prov-r)))))
 
-;(define (next-coords-in-direction-dis coords direction)
-;  (call/1cc
-;    (lambda (cont)
-;      (let* (
-;          (f-in (car coords))
-;          (f
-;            (case direction
-;              ((u d) f-in)
-;              ((r ur dr nur ndr) (+ f-in 1))
-;              ((nru nrd) (+ f-in 2))
-;              ((l dl ul ndl nul) (- f-in 1))
-;              ((nld nlu) (- f-in 2)))))
-;        (if (or (> f 7) (< f 0))
-;          (begin (cont '()) (exit))
-;          (list
-;            f
-;            (let* (
-;                (r-in (cadr coords))
-;                (r
-;                  (case direction
-;                    ((r l) r-in)
-;                    ((u ur ul nru nlu) (+ r-in 1))
-;                    ((nur nul) (+ r-in 2))
-;                    ((d dr dl nrd nld) (- r-in 1))
-;                    ((ndr ndl) (- r-in 2)))))
-;              (if (or (> r 7) (< r 0))
-;                (begin (cont '()) (exit))
-;                r))))))))
+(define cache:next-coords-in-direction
+  ; indices:
+  ; 0: coords-from
+  ; 1: direction
+  ; result: coords-to
+  (list->vector
+    (map
+      (lambda (coords)
+        (list->vector
+          (map
+            (lambda (direction)
+              (calc-next-coords-in-direction coords direction))
+            all-directions)))
+      all-coords)))
+
+(define (next-coords-in-direction coords direction)
+  (vector-ref
+    (vector-ref cache:next-coords-in-direction coords)
+    direction))
 
 (define (friendly-piece-at-coords? placement coords color)
   (member
@@ -566,19 +566,19 @@
 
 (define (available-squares-for-rook coords position)
   (available-squares-along-directions
-      coords position '(u r d l) 7 #t #t))
+      coords position rook-directions 7 #t #t))
 
 (define (available-squares-for-bishop coords position)
   (available-squares-along-directions
-      coords position '(ur dr dl ul) 7 #t #t))
+      coords position bishop-directions 7 #t #t))
 
 (define (available-squares-for-queen coords position)
   (available-squares-along-directions
-      coords position '(u ur r dr d dl l ul) 7 #t #t))
+      coords position queen-directions 7 #t #t))
 
 (define (available-squares-for-king coords position)
   (available-squares-along-directions
-      coords position '(u ur r dr d dl l ul) 1 #t #t))
+      coords position king-directions 1 #t #t))
 
 (define can-king-be-captured?
   (memoized-proc position-index-can-king-be-captured
@@ -602,15 +602,15 @@
   (define placement (position-placement position))
   (define color
     (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
-  (define forward-direction (if (symbol=? color 'w) 'u 'd))
-  (define forward-right-direction (if (symbol=? color 'w) 'ur 'dl))
-  (define forward-left-direction (if (symbol=? color 'w) 'ul 'dr))
+  (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
+  (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
+  (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
   (define initial-rank (if (symbol=? color 'w) 1 6))
   (append
     (available-squares-along-directions
       coords position
         (list forward-direction)
-        (if (= (cadr coords) initial-rank) 2 1) #f #t)
+        (if (= (cadr (coords-to-cls coords)) initial-rank) 2 1) #f #t)
     (available-squares-along-directions
       coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
@@ -706,10 +706,8 @@
       (= piece-moving P)
       (= piece-moving p)))
   (define new-placement (bytevector-copy placement))
-  (bytevector-u8-set! new-placement
-    (placement-index (car coords-from) (cadr coords-from)) E)
-  (bytevector-u8-set! new-placement
-    (placement-index (car coords-to) (cadr coords-to)) piece-moving)
+  (bytevector-u8-set! new-placement coords-from E)
+  (bytevector-u8-set! new-placement coords-to piece-moving)
   (make-position
     new-placement
     (toggled-color (position-active-color position))
@@ -778,19 +776,6 @@
                 (if (enemy-piece-at-coords? placement coords-to active-color)
                   (list (cons move result) (1+ len) (cdr moves))
                   (list result len (cdr moves)))))))))))
-
-(define (is-position-quiescent? position)
-  (and
-    (null?
-      (available-captures-from-position position 1))
-    (null?
-      (available-captures-from-position
-        (position-copy-w-toggled-active-color position) 1))
-    ; If a position is check it means toggling the active color does have the
-    ; "capture" of king but because the position is invalid it won't be found.
-    ; It is not reasonable to treat checks as quiescent, therefore place this
-    ; check but place it last for performance reasons.
-    (not (is-position-check? position))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
@@ -949,7 +934,7 @@
             (lambda (move) (admit-disruptive position move))))))
     (let-values (
         ((admissible-moves inadmissible-moves)
-          (if (symbol=? pred 'admit-all)
+          (if (eq? pred 'admit-all)
             (values all-moves '())
             (partition pred all-moves))))
       (if (null? admissible-moves)
