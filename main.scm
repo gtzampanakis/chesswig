@@ -489,24 +489,30 @@
       '()
       (cls-to-coords (list prov-f prov-r)))))
 
-(define cache:next-coords-in-direction
+(define cache:all-coords-in-direction
   ; indices:
   ; 0: coords-from
   ; 1: direction
-  ; result: coords-to
+  ; result: (coords-to ...)
   (list->vector
     (map
       (lambda (coords)
         (list->vector
           (map
             (lambda (direction)
-              (calc-next-coords-in-direction coords direction))
+              (let loop ((coords coords) (result '()))
+                (let (
+                    (next-coords
+                      (calc-next-coords-in-direction coords direction)))
+                  (if (null? next-coords)
+                    (reverse result)
+                    (loop next-coords (cons next-coords result))))))
             all-directions)))
       all-coords)))
 
-(define (next-coords-in-direction coords direction)
+(define (all-coords-in-direction coords direction)
   (vector-ref
-    (vector-ref cache:next-coords-in-direction coords)
+    (vector-ref cache:all-coords-in-direction coords)
     direction))
 
 (define (friendly-piece-at-coords? placement coords color)
@@ -854,27 +860,27 @@
     (map
       (lambda (direction)
         (let loop (
-            (coords (next-coords-in-direction coords direction))
+            (all-coords (all-coords-in-direction coords direction))
             (max-distance max-distance)
             (result '()))
           (cond
             ((= max-distance 0)
               result)
-            ((null? coords)
+            ((null? all-coords)
               result)
-            ((friendly-piece-at-coords? placement coords color)
+            ((friendly-piece-at-coords? placement (car all-coords) color)
               result)
-            ((enemy-piece-at-coords? placement coords color)
+            ((enemy-piece-at-coords? placement (car all-coords) color)
               (if capture-allowed?
-                (cons coords result)
+                (cons (car all-coords) result)
                 result))
             ((not non-capture-allowed?)
               result)
             (else
               (loop
-                (next-coords-in-direction coords direction)
+                (cdr all-coords)
                 (1- max-distance)
-                (cons coords result))))))
+                (cons (car all-coords) result))))))
       directions)))
 
 (define (admit-disruptive position move)
