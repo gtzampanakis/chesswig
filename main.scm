@@ -304,6 +304,15 @@
 (define (black-piece? piece)
   (member piece black-pieces))
 
+(define (piece-color piece)
+  (cond
+    ((white-piece? piece) 'w)
+    ((black-piece? piece) 'b)
+    (else 'empty)))
+
+(define (toggled-color color)
+  (if (symbol=? color 'w) 'b 'w))
+
 (define (decode-rank rank-string)
   (fold-left
     (lambda (current-result char)
@@ -852,28 +861,29 @@
           coords position direction
           max-distance capture-allowed? non-capture-allowed?)
   (define placement (position-placement position))
-  (define color
-    (if (member (piece-at-coords placement coords) white-pieces)
-      'w 'b))
+  (define color (piece-color (piece-at-coords placement coords)))
   (let loop (
       (all-coords (all-coords-in-direction coords direction))
       (max-distance max-distance)
       (result '()))
-    (cond
-      ((or (= max-distance 0) (null? all-coords)
-            (friendly-piece-at-coords? placement (car all-coords) color))
-        result)
-      ((enemy-piece-at-coords? placement (car all-coords) color)
-        (if capture-allowed?
-          (cons (car all-coords) result)
-          result))
-      ((not non-capture-allowed?)
-        result)
-      (else
-        (loop
-          (cdr all-coords)
-          (1- max-distance)
-          (cons (car all-coords) result))))))
+    (if (or (= max-distance 0) (null? all-coords))
+      result
+      (let* (
+          (piece-found (piece-at-coords placement (car all-coords)))
+          (piece-found-color (piece-color piece-found)))
+        (cond
+          ((= piece-found E)
+            (if (not non-capture-allowed?) result
+             (loop
+               (cdr all-coords)
+               (1- max-distance)
+               (cons (car all-coords) result))))
+          ((symbol=? piece-found-color color)
+            result)
+          ((symbol=? piece-found-color (toggled-color color))
+            (if capture-allowed?
+              (cons (car all-coords) result)
+              result)))))))
 
 (define (available-squares-along-directions
           coords position directions
