@@ -858,32 +858,31 @@
           (loop (cdr eval-obj)))))))
 
 (define (available-squares-along-direction
-          coords position direction
+          coords-from position direction
           max-distance capture-allowed? non-capture-allowed?)
   (define placement (position-placement position))
-  (define color (piece-color (piece-at-coords placement coords)))
+  (define color (piece-color (piece-at-coords placement coords-from)))
   (let loop (
-      (all-coords (all-coords-in-direction coords direction))
+      (all-coords (all-coords-in-direction coords-from direction))
       (max-distance max-distance)
       (result '()))
     (if (or (= max-distance 0) (null? all-coords))
       result
       (let* (
-          (piece-found (piece-at-coords placement (car all-coords)))
-          (piece-found-color (piece-color piece-found)))
-        (cond
-          ((= piece-found E)
-            (if (not non-capture-allowed?) result
-             (loop
-               (cdr all-coords)
-               (1- max-distance)
-               (cons (car all-coords) result))))
-          ((symbol=? piece-found-color color)
-            result)
-          ((symbol=? piece-found-color (toggled-color color))
-            (if capture-allowed?
-              (cons (car all-coords) result)
-              result)))))))
+          (coords (car all-coords))
+          (piece-found (piece-at-coords placement coords)))
+        (if (= piece-found E)
+          (if (not non-capture-allowed?) result
+            (loop
+              (cdr all-coords)
+              (1- max-distance)
+              (cons coords result)))
+          (let ((piece-found-color (piece-color piece-found)))
+            (if (symbol=? piece-found-color color)
+              result
+              (if capture-allowed?
+                (cons coords result)
+                result))))))))
 
 (define (available-squares-along-directions
           coords position directions
