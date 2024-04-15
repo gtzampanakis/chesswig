@@ -848,39 +848,45 @@
           (newline)
           (loop (cdr eval-obj)))))))
 
+(define (available-squares-along-direction
+          coords position direction
+          max-distance capture-allowed? non-capture-allowed?)
+  (define placement (position-placement position))
+  (define color
+    (if (member (piece-at-coords placement coords) white-pieces)
+      'w 'b))
+  (let loop (
+      (all-coords (all-coords-in-direction coords direction))
+      (max-distance max-distance)
+      (result '()))
+    (cond
+      ((= max-distance 0)
+        result)
+      ((null? all-coords)
+        result)
+      ((friendly-piece-at-coords? placement (car all-coords) color)
+        result)
+      ((enemy-piece-at-coords? placement (car all-coords) color)
+        (if capture-allowed?
+          (cons (car all-coords) result)
+          result))
+      ((not non-capture-allowed?)
+        result)
+      (else
+        (loop
+          (cdr all-coords)
+          (1- max-distance)
+          (cons (car all-coords) result))))))
+
 (define (available-squares-along-directions
           coords position directions
           max-distance capture-allowed? non-capture-allowed?)
-  (define placement (position-placement position))
-  (define
-    color
-    (if (member (piece-at-coords placement coords) white-pieces)
-      'w 'b))
   (apply append
     (map
       (lambda (direction)
-        (let loop (
-            (all-coords (all-coords-in-direction coords direction))
-            (max-distance max-distance)
-            (result '()))
-          (cond
-            ((= max-distance 0)
-              result)
-            ((null? all-coords)
-              result)
-            ((friendly-piece-at-coords? placement (car all-coords) color)
-              result)
-            ((enemy-piece-at-coords? placement (car all-coords) color)
-              (if capture-allowed?
-                (cons (car all-coords) result)
-                result))
-            ((not non-capture-allowed?)
-              result)
-            (else
-              (loop
-                (cdr all-coords)
-                (1- max-distance)
-                (cons (car all-coords) result))))))
+        (available-squares-along-direction
+          coords position direction
+          max-distance capture-allowed? non-capture-allowed?))
       directions)))
 
 (define (admit-disruptive position move)
