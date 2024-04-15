@@ -860,11 +860,8 @@
       (max-distance max-distance)
       (result '()))
     (cond
-      ((= max-distance 0)
-        result)
-      ((null? all-coords)
-        result)
-      ((friendly-piece-at-coords? placement (car all-coords) color)
+      ((or (= max-distance 0) (null? all-coords)
+            (friendly-piece-at-coords? placement (car all-coords) color))
         result)
       ((enemy-piece-at-coords? placement (car all-coords) color)
         (if capture-allowed?
