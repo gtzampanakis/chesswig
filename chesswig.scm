@@ -863,6 +863,8 @@
 (define (available-squares-along-direction
           coords-from position direction
           max-distance allowed-to-capture? allowed-to-move-to-empty?)
+  (define placement (position-placement position))
+  (define color (piece-color (piece-at-coords placement coords-from)))
   (let loop (
       (all-coords (all-coords-in-direction coords-from direction))
       (max-distance max-distance)
@@ -871,7 +873,6 @@
       result
       (let* (
           (coords (car all-coords))
-          (placement (position-placement position))
           (piece-found (piece-at-coords placement coords)))
         (if (= piece-found E)
           (if (not allowed-to-move-to-empty?) result
@@ -880,9 +881,7 @@
               (1- max-distance)
               (cons coords result)))
           (if
-            (symbol=?
-              (piece-color piece-found)
-              (piece-color (piece-at-coords placement coords-from)))
+            (symbol=? (piece-color piece-found) color)
             result
             (if allowed-to-capture?
               (cons coords result)
