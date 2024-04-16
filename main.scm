@@ -876,15 +876,14 @@
               (cdr all-coords)
               (1- max-distance)
               (cons coords result)))
-          (let ((piece-found-color (piece-color piece-found)))
-            (if
-              (symbol=?
-                piece-found-color
-                (piece-color (piece-at-coords placement coords-from)))
-              result
-              (if allowed-to-capture?
-                (cons coords result)
-                result))))))))
+          (if
+            (symbol=?
+              (piece-color piece-found)
+              (piece-color (piece-at-coords placement coords-from)))
+            result
+            (if allowed-to-capture?
+              (cons coords result)
+              result)))))))
 
 (define (available-squares-along-directions
           coords position directions
