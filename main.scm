@@ -859,7 +859,7 @@
 
 (define (available-squares-along-direction
           coords-from position direction
-          max-distance capture-allowed? non-capture-allowed?)
+          max-distance allowed-to-capture? allowed-to-move-to-empty?)
   (define placement (position-placement position))
   (define color (piece-color (piece-at-coords placement coords-from)))
   (let loop (
@@ -872,7 +872,7 @@
           (coords (car all-coords))
           (piece-found (piece-at-coords placement coords)))
         (if (= piece-found E)
-          (if (not non-capture-allowed?) result
+          (if (not allowed-to-move-to-empty?) result
             (loop
               (cdr all-coords)
               (1- max-distance)
@@ -880,19 +880,19 @@
           (let ((piece-found-color (piece-color piece-found)))
             (if (symbol=? piece-found-color color)
               result
-              (if capture-allowed?
+              (if allowed-to-capture?
                 (cons coords result)
                 result))))))))
 
 (define (available-squares-along-directions
           coords position directions
-          max-distance capture-allowed? non-capture-allowed?)
+          max-distance allowed-to-capture? allowed-to-move-to-empty?)
   (apply append
     (map
       (lambda (direction)
         (available-squares-along-direction
           coords position direction
-          max-distance capture-allowed? non-capture-allowed?))
+          max-distance allowed-to-capture? allowed-to-move-to-empty?))
       directions)))
 
 (define (admit-disruptive position move)
