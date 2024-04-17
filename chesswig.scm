@@ -652,16 +652,11 @@
       ((or (= piece K) (= piece k))
         (available-squares-for-king piece coords position))))
   (if dont-allow-exposed-king
-    (map
-      caddr
-      (filter
-        (lambda (move)
-          (not (can-king-be-captured?
-              (position-after-move position move))))
-        (map
-          (lambda (sq)
-            (list piece coords sq))
-          unchecked-for-checks)))
+    (filter
+      (lambda (sq-to)
+        (not (can-king-be-captured?
+              (position-after-move position (list piece coords sq-to)))))
+      unchecked-for-checks)
     unchecked-for-checks))
 
 (define available-moves-from-position
