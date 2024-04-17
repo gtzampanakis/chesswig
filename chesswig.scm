@@ -307,16 +307,16 @@
   result)
 
 (define (white-piece? piece)
-  (member piece white-pieces))
+  (and (< piece 8) (> piece 0)))
 
 (define (black-piece? piece)
-  (member piece black-pieces))
+  (and (>= piece 8) (> piece 0)))
 
 (define (piece-color piece)
   (cond
-    ((white-piece? piece) 'w)
-    ((black-piece? piece) 'b)
-    (else 'empty)))
+    ((= piece 0) 'empty)
+    ((< piece 8) 'w)
+    (else 'b)))
 
 (define (toggled-color color)
   (if (symbol=? color 'w) 'b 'w))
@@ -533,18 +533,14 @@
     direction))
 
 (define (friendly-piece-at-coords? placement coords color)
-  (member
-    (piece-at-coords placement coords)
-    (case color
-      ((w) white-pieces)
-      ((b) black-pieces))))
+  (symbol=?
+    (piece-color (piece-at-coords placement coords))
+    color))
       
 (define (enemy-piece-at-coords? placement coords color)
-  (member
-    (piece-at-coords placement coords)
-    (case color
-      ((w) black-pieces)
-      ((b) white-pieces))))
+  (symbol=?
+    (piece-color (piece-at-coords placement coords))
+    (toggled-color color)))
 
 (define (piece-at-coords? placement coords)
   (not (= (piece-at-coords placement coords) E)))
@@ -609,8 +605,7 @@
 
 (define (available-squares-for-pawn coords position)
   (define placement (position-placement position))
-  (define color
-    (if (member (piece-at-coords placement coords) white-pieces) 'w 'b))
+  (define color (piece-color (piece-at-coords placement coords)))
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
   (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
   (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
@@ -626,10 +621,7 @@
 
 (define (available-squares-for-knight coords position)
   (define placement (position-placement position))
-  (define
-    color
-    (if (member (piece-at-coords placement coords) white-pieces)
-      'w 'b))
+  (define color (piece-color (piece-at-coords placement coords)))
   (filter
     (lambda (candidate-coords)
       (and (not (null? candidate-coords))
