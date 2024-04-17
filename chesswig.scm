@@ -571,21 +571,21 @@
     (null? (available-moves-from-position position))
     (not (is-position-check? position))))
 
-(define (available-squares-for-rook piece coords position)
+(define (available-squares-for-rook piece color coords position)
   (available-squares-along-directions
-      piece coords position rook-directions 7 #t #t))
+      piece color coords position rook-directions 7 #t #t))
 
-(define (available-squares-for-bishop piece coords position)
+(define (available-squares-for-bishop piece color coords position)
   (available-squares-along-directions
-      piece coords position bishop-directions 7 #t #t))
+      piece color coords position bishop-directions 7 #t #t))
 
-(define (available-squares-for-queen piece coords position)
+(define (available-squares-for-queen piece color coords position)
   (available-squares-along-directions
-      piece coords position queen-directions 7 #t #t))
+      piece color coords position queen-directions 7 #t #t))
 
-(define (available-squares-for-king piece coords position)
+(define (available-squares-for-king piece color coords position)
   (available-squares-along-directions
-      piece coords position king-directions 1 #t #t))
+      piece color coords position king-directions 1 #t #t))
 
 (define can-king-be-captured?
   (memoized-proc position-index-can-king-be-captured
@@ -603,25 +603,23 @@
               #t
               (loop (cdr moves)))))))))
 
-(define (available-squares-for-pawn piece coords position)
+(define (available-squares-for-pawn piece color coords position)
   (define placement (position-placement position))
-  (define color (piece-color piece))
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
   (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
   (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
   (define initial-rank (if (symbol=? color 'w) 1 6))
   (append
     (available-squares-along-directions
-      piece coords position
+      piece color coords position
         (list forward-direction)
         (if (= (cadr (coords-to-cls coords)) initial-rank) 2 1) #f #t)
     (available-squares-along-directions
-      piece coords position
+      piece color coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
-(define (available-squares-for-knight piece coords position)
+(define (available-squares-for-knight piece color coords position)
   (define placement (position-placement position))
-  (define color (piece-color piece))
   (filter
     (lambda (candidate-coords)
       (and (not (null? candidate-coords))
@@ -637,20 +635,21 @@
           piece coords position dont-allow-exposed-king)
   (define placement (position-placement position))
   (define unchecked-for-checks
-    (cond
-      ((= piece E) '())
-      ((or (= piece P) (= piece p))
-        (available-squares-for-pawn piece coords position))
-      ((or (= piece R) (= piece r))
-        (available-squares-for-rook piece coords position))
-      ((or (= piece B) (= piece b))
-        (available-squares-for-bishop piece coords position))
-      ((or (= piece N) (= piece n))
-        (available-squares-for-knight piece coords position))
-      ((or (= piece Q) (= piece q))
-        (available-squares-for-queen piece coords position))
-      ((or (= piece K) (= piece k))
-        (available-squares-for-king piece coords position))))
+    (if (= piece E) '()
+      (let ((color (piece-color piece)) (m (modulo piece 8)))
+        (cond
+          ((= m 1)
+            (available-squares-for-pawn piece color coords position))
+          ((= m 2)
+            (available-squares-for-rook piece color coords position))
+          ((= m 4)
+            (available-squares-for-bishop piece color coords position))
+          ((= m 3)
+            (available-squares-for-knight piece color coords position))
+          ((= m 5)
+            (available-squares-for-queen piece color coords position))
+          ((= m 6)
+            (available-squares-for-king piece color coords position))))))
   (if dont-allow-exposed-king
     (filter
       (lambda (sq-to)
@@ -850,10 +849,9 @@
           (loop (cdr eval-obj)))))))
 
 (define (available-squares-along-direction
-          piece coords-from position direction
+          piece color coords-from position direction
           max-distance allowed-to-capture? allowed-to-move-to-empty?)
   (define placement (position-placement position))
-  (define color (piece-color piece))
   (let loop (
       (all-coords (all-coords-in-direction coords-from direction))
       (max-distance max-distance)
@@ -877,13 +875,13 @@
               result)))))))
 
 (define (available-squares-along-directions
-          piece coords position directions
+          piece color coords position directions
           max-distance allowed-to-capture? allowed-to-move-to-empty?)
   (apply append
     (map
       (lambda (direction)
         (available-squares-along-direction
-          piece coords position direction
+          piece color coords position direction
           max-distance allowed-to-capture? allowed-to-move-to-empty?))
       directions)))
 
