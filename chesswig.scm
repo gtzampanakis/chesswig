@@ -557,7 +557,7 @@
         (if (null? moves)
           #f
           (let ((move (car moves)))
-            (if (= (car move) king-to-capture)
+            (if (= (piece-at-coords placement (caddr move)) king-to-capture)
               #t
               (loop (cdr moves)))))))))
 
