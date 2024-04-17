@@ -676,6 +676,8 @@
     (lambda (position dont-allow-exposed-king)
       (define placement (position-placement position))
       (define active-color (position-active-color position))
+      (define white-to-play? (symbol=? active-color 'w))
+      (define black-to-play? (symbol=? active-color 'b))
       (apply append
         (map-over-placement
           (lambda (piece coords-from)
@@ -684,8 +686,8 @@
                 (list coords-from coords-to))
               (if
                 (or
-                  (and (symbol=? active-color 'w) (white-piece? piece))
-                  (and (symbol=? active-color 'b) (black-piece? piece)))
+                  (and white-to-play? (white-piece? piece))
+                  (and black-to-play? (black-piece? piece)))
                 (available-squares-from-coords
                     coords-from position dont-allow-exposed-king)
                 '())))
