@@ -620,16 +620,19 @@
 
 (define (available-squares-for-knight piece color coords position)
   (define placement (position-placement position))
-  (filter
-    (lambda (candidate-coords)
-      (and (not (null? candidate-coords))
-        (not
-          (friendly-piece-at-coords?
-            placement candidate-coords color))))
-    (map
-      (lambda (direction)
-        (car (all-coords-in-direction coords direction)))
-      knight-directions)))
+  (let loop ((sqs '()) (knight-directions knight-directions))
+    (if (null? knight-directions) sqs
+      (let ((dir (car knight-directions)))
+        (loop
+          (let ((sqs-in-dir (all-coords-in-direction coords dir)))
+            (if
+              (or
+                (null? sqs-in-dir)
+                (friendly-piece-at-coords?
+                  placement (car sqs-in-dir) color))
+              sqs
+              (cons (car sqs-in-dir) sqs)))
+          (cdr knight-directions))))))
 
 (define (available-squares-from-coords
           piece coords position dont-allow-exposed-king)
