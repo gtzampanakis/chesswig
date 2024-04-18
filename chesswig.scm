@@ -39,6 +39,9 @@
 (define position-index-check 9)
 (define position-index-can-king-be-captured 10)
 
+(define position-index-coords-with-no-black-pieces 11)
+(define position-index-coords-with-no-white-pieces 12)
+
 (define (position-placement p) (list-ref p position-index-placement))
 (define (position-active-color p) (list-ref p position-index-active-color))
 (define (position-castling p) (list-ref p position-index-castling))
@@ -158,16 +161,33 @@
 (define (placement-ref placement coords)
   (bytevector-u8-ref placement coords))
 
-(define (map-over-placement proc placement)
-  (map
-    (lambda (coords)
-      (proc (placement-ref placement coords) coords))
-    all-coords))
+(define (map-over-placement include-white? include-black? proc position)
+  (define placement (position-placement position))
+  (define cs
+    (append
+      (if include-white?
+        (list-ref position position-index-coords-with-no-black-pieces) '())
+      (if include-black?
+        (list-ref position position-index-coords-with-no-white-pieces) '())))
+  (let loop ((result '()) (cs cs))
+    (if (null? cs) result
+      (let* (
+          (coords (car cs))
+          (piece (piece-at-coords placement coords))
+          (color (piece-color piece)))
+        (loop
+          (if
+            (or
+              (and include-white? (symbol=? color 'w))
+              (and include-black? (symbol=? color 'b)))
+            (cons (proc piece coords) result)
+            result)
+          (cdr cs))))))
 
-(define (for-each-over-placement proc placement)
+(define (for-each-over-placement proc position)
   (for-each
     (lambda (coords)
-      (proc (placement-ref placement coords) coords))
+      (proc (placement-ref (position-placement position) coords) coords))
     all-coords))
 
 (define (char->symbol char)
@@ -267,7 +287,7 @@
                           (exit)))
                       (available-squares-from-coords
                          piece coords position #t)))))))
-          placement)
+          position)
         "")))
   (define file-str
     (call/1cc
@@ -288,7 +308,7 @@
                           (exit)))
                       (available-squares-from-coords
                          piece coords position #t)))))))
-          placement)
+          position)
         "")))
   (define next-position (position-after-move position move))
   (define check-or-checkmate-str
@@ -381,6 +401,14 @@
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
+      (filter
+        (lambda (coords)
+          (symbol=? (piece-color (piece-at-coords placement coords)) 'w))
+        all-coords)
+      (filter
+        (lambda (coords)
+          (symbol=? (piece-color (piece-at-coords placement coords)) 'b))
+        all-coords)
       ))
   (when track-positions-examined?
     (hashtable-set! positions-examined (encode-fen pos) 1))
@@ -407,7 +435,8 @@
         (decode-castling (list-ref field-strings 2))
         (decode-en-passant (list-ref field-strings 3))
         (decode-halfmoves (list-ref field-strings 4))
-        (decode-fullmoves (list-ref field-strings 5))))))
+        (decode-fullmoves (list-ref field-strings 5))
+        ))))
 
 (define (inc-char char)
   (car
@@ -671,24 +700,20 @@
 (define available-moves-from-position-full-args
   (memoized-proc position-index-moves
     (lambda (position dont-allow-exposed-king)
-      (define placement (position-placement position))
       (define active-color (position-active-color position))
       (define white-to-play? (symbol=? active-color 'w))
       (define black-to-play? (symbol=? active-color 'b))
       (apply append
         (map-over-placement
+          white-to-play?
+          black-to-play?
           (lambda (piece coords-from)
             (map
               (lambda (coords-to)
                 (list piece coords-from coords-to))
-              (if
-                (or
-                  (and white-to-play? (white-piece? piece))
-                  (and black-to-play? (black-piece? piece)))
-                (available-squares-from-coords
-                    piece coords-from position dont-allow-exposed-king)
-                '())))
-          placement)))))
+              (available-squares-from-coords
+                  piece coords-from position dont-allow-exposed-king)))
+          position)))))
 
 (define (position-after-move position move)
   (define placement (position-placement position))
@@ -743,14 +768,14 @@
         ((is-position-stalemate? position)
           0)
         (else
-          (let ((placement (position-placement position)))
-            (fold-left
-              +
-              0
-              (map-over-placement
-                (lambda (piece coords)
-                  (piece-base-value piece))
-                placement))))))))
+          (fold-left
+            +
+            0
+            (map-over-placement
+              #t #t
+              (lambda (piece coords)
+                (piece-base-value piece))
+              position)))))))
 
 (define available-captures-from-position
   (case-lambda
