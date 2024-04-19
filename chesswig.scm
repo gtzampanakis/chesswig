@@ -159,17 +159,18 @@
   (lambda args
     (if (not caching?)
       (apply proc args)
-      (let ((c (list-ref (car args) cache-index-in-position)))
-        (let ((cached-result-pair (assoc (cdr args) c)))
-          (match cached-result-pair
-            ((,key . ,val) val)
-            (#f
-              (let ((result (apply proc args)))
-                (list-set!
-                  (car args)
-                  cache-index-in-position
-                  (cons (cons (cdr args) result) c))
-                result))))))))
+      (let ((position (car args)) (rest (cdr args)))
+        (let ((c (list-ref position cache-index-in-position)))
+          (let ((cached-result-pair (assoc rest c)))
+            (match cached-result-pair
+              ((,key . ,val) val)
+              (#f
+                (let ((result (apply proc args)))
+                  (list-set!
+                    position
+                    cache-index-in-position
+                    (cons (cons rest result) c))
+                  result)))))))))
 
 (define all-coords (iota 64))
 
