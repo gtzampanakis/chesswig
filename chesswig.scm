@@ -151,7 +151,7 @@
   (let ((f (car cls)) (r (cadr cls)))
     (+ (* 8 r) f)))
 
-(define (memoized-proc hashtable-index-in-position proc)
+(define (memoized-proc cache-index-in-position proc)
 ; Memoization that stores its data inside the first argument. This allows to
 ; have a separate cache for each position which means that we do not need to
 ; cache the first argument which might be expensive because of its complexity.
@@ -159,13 +159,17 @@
   (lambda args
     (if (not caching?)
       (apply proc args)
-      (let ((h (list-ref (car args) hashtable-index-in-position)))
-        (let ((cached-result (hashtable-ref h (cdr args) 'cache:not-exists)))
-          (if (eq? cached-result 'cache:not-exists)
-            (let ((result (apply proc args)))
-              (hashtable-set! h (cdr args) result)
-              result)
-            cached-result))))))
+      (let ((c (list-ref (car args) cache-index-in-position)))
+        (let ((cached-result-pair (assoc (cdr args) c)))
+          (match cached-result-pair
+            ((,key . ,val) val)
+            (#f
+              (let ((result (apply proc args)))
+                (list-set!
+                  (car args)
+                  cache-index-in-position
+                  (cons (cons (cdr args) result) c))
+                result))))))))
 
 (define all-coords (iota 64))
 
@@ -416,11 +420,11 @@
       en-passant
       halfmoves
       fullmoves
-      (make-hashtable equal-hash equal?)
-      (make-hashtable equal-hash equal?)
-      (make-hashtable equal-hash equal?)
-      (make-hashtable equal-hash equal?)
-      (make-hashtable equal-hash equal?)
+      '()
+      '()
+      '()
+      '()
+      '()
       (if original-position
         (let ((orig-incl-all-w (position-coords-incl-all-w original-position)))
           (if original-move
