@@ -11,19 +11,26 @@
 
 (define caching? #t)
 
-(define P 1)
-(define R 2)
-(define N 3)
-(define B 4)
-(define Q 5)
-(define K 6)
+(define P-base 1)
+(define R-base 2)
+(define N-base 3)
+(define B-base 4)
+(define Q-base 5)
+(define K-base 6)
+
+(define P P-base)
+(define R R-base)
+(define N N-base)
+(define B B-base)
+(define Q Q-base)
+(define K K-base)
 (define E 9)
-(define p 10)
-(define r 11)
-(define n 12)
-(define b 13)
-(define q 14)
-(define k 15)
+(define p (+ E P-base))
+(define r (+ E R-base))
+(define n (+ E N-base))
+(define b (+ E B-base))
+(define q (+ E Q-base))
+(define k (+ E K-base))
 
 (define position-index-placement 0)
 (define position-index-active-color 1)
@@ -144,7 +151,7 @@
   (let ((f (car cls)) (r (cadr cls)))
     (+ (* 8 r) f)))
 
-(define (memoized-proc hash-index proc)
+(define (memoized-proc hashtable-index-in-position proc)
 ; Memoization that stores its data inside the first argument. This allows to
 ; have a separate cache for each position which means that we do not need to
 ; cache the first argument which might be expensive because of its complexity.
@@ -152,7 +159,7 @@
   (lambda args
     (if (not caching?)
       (apply proc args)
-      (let ((h (list-ref (car args) hash-index)))
+      (let ((h (list-ref (car args) hashtable-index-in-position)))
         (let ((cached-result (hashtable-ref h (cdr args) 'cache:not-exists)))
           (if (eq? cached-result 'cache:not-exists)
             (let ((result (apply proc args)))
@@ -615,9 +622,11 @@
         (if (null? moves)
           #f
           (let ((move (car moves)))
-            (if (= (piece-at-coords placement (caddr move)) king-to-capture)
-              #t
-              (loop (cdr moves)))))))))
+            (match move
+              ((,piece ,sq-from ,sq-to)
+                (if (= (piece-at-coords placement sq-to) king-to-capture)
+                  #t
+                  (loop (cdr moves)))))))))))
 
 (define (is-position-checkmate? position)
   (and
@@ -697,19 +706,19 @@
   (define placement (position-placement position))
   (define unchecked-for-checks
     (if (= piece E) '()
-      (let ((color (piece-color piece)) (m (modulo piece 9)))
+      (let ((color (piece-color piece)) (m (modulo piece E)))
         (cond
-          ((= m 1)
+          ((= m P-base)
             (available-squares-for-pawn piece color coords position))
-          ((= m 2)
+          ((= m R-base)
             (available-squares-for-rook piece color coords position))
-          ((= m 4)
+          ((= m B-base)
             (available-squares-for-bishop piece color coords position))
-          ((= m 3)
+          ((= m N-base)
             (available-squares-for-knight piece color coords position))
-          ((= m 5)
+          ((= m Q-base)
             (available-squares-for-queen piece color coords position))
-          ((= m 6)
+          ((= m K-base)
             (available-squares-for-king piece color coords position))))))
   (if dont-allow-exposed-king
     (filter
@@ -750,10 +759,7 @@
   (define coords-to (caddr move))
   (define piece-moving (piece-at-coords placement coords-from))
   (define capture? (piece-at-coords? placement coords-to))
-  (define pawn-move?
-    (or
-      (= piece-moving P)
-      (= piece-moving p)))
+  (define pawn-move? (= (modulo piece-moving E) 1))
   (define new-placement (bytevector-copy placement))
   (bytevector-u8-set! new-placement coords-from E)
   (bytevector-u8-set! new-placement coords-to piece-moving)
