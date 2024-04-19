@@ -38,27 +38,29 @@
 (define position-index-en-passant 3)
 (define position-index-halfmoves 4)
 (define position-index-fullmoves 5)
+(define position-index-parent-position 6)
+(define position-index-parent-move 7)
 
 ; Cache positions
-(define position-index-moves 6)
-(define position-index-static-val 7)
-(define position-index-eval-at-ply 8)
-(define position-index-check 9)
-(define position-index-can-king-be-captured 10)
+(define position-index-moves 8)
+(define position-index-static-val 9)
+(define position-index-eval-at-ply 10)
+(define position-index-check 11)
+(define position-index-can-king-be-captured 12)
 
-(define position-index-coords-incl-all-w 11)
-(define position-index-coords-incl-all-b 12)
+(define position-index-coords-incl-all-w 13)
+(define position-index-coords-incl-all-b 14)
 
-(define (position-placement p) (list-ref p position-index-placement))
-(define (position-active-color p) (list-ref p position-index-active-color))
-(define (position-castling p) (list-ref p position-index-castling))
-(define (position-en-passant p) (list-ref p position-index-en-passant))
-(define (position-halfmoves p) (list-ref p position-index-halfmoves))
-(define (position-fullmoves p) (list-ref p position-index-fullmoves))
+(define (position-placement p) (vector-ref p position-index-placement))
+(define (position-active-color p) (vector-ref p position-index-active-color))
+(define (position-castling p) (vector-ref p position-index-castling))
+(define (position-en-passant p) (vector-ref p position-index-en-passant))
+(define (position-halfmoves p) (vector-ref p position-index-halfmoves))
+(define (position-fullmoves p) (vector-ref p position-index-fullmoves))
 (define (position-coords-incl-all-w p)
-  (list-ref p position-index-coords-incl-all-w))
+  (vector-ref p position-index-coords-incl-all-w))
 (define (position-coords-incl-all-b p)
-  (list-ref p position-index-coords-incl-all-b))
+  (vector-ref p position-index-coords-incl-all-b))
 
 (define white-pieces (list P R N B Q K))
 (define black-pieces (list p r n b q k))
@@ -160,13 +162,13 @@
     (if (not caching?)
       (apply proc args)
       (let ((position (car args)) (rest (cdr args)))
-        (let ((c (list-ref position cache-index-in-position)))
+        (let ((c (vector-ref position cache-index-in-position)))
           (let ((cached-result-pair (assoc rest c)))
             (match cached-result-pair
               ((,key . ,val) val)
               (#f
                 (let ((result (apply proc args)))
-                  (list-set!
+                  (vector-set!
                     position
                     cache-index-in-position
                     (cons (cons rest result) c))
@@ -190,8 +192,8 @@
           (if (null? cs)
             (begin
               (if (symbol=? color-wanted 'w)
-                (list-set! position position-index-coords-incl-all-w trimmed)
-                (list-set! position position-index-coords-incl-all-b trimmed))
+                (vector-set! position position-index-coords-incl-all-w trimmed)
+                (vector-set! position position-index-coords-incl-all-b trimmed))
               result)
             (let* (
                 (coords (car cs))
@@ -412,24 +414,26 @@
 
 (define (make-position placement active-color castling
                         en-passant halfmoves
-                        fullmoves original-position original-move)
+                        fullmoves parent-position parent-move)
   (define pos
-    (list
+    (vector
       placement
       active-color
       castling
       en-passant
       halfmoves
       fullmoves
+      parent-position
+      parent-move
       '()
       '()
       '()
       '()
       '()
-      (if original-position
-        (let ((orig-incl-all-w (position-coords-incl-all-w original-position)))
-          (if original-move
-            (match original-move
+      (if parent-position
+        (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
+          (if parent-move
+            (match parent-move
               ((,piece ,sq-from ,sq-to)
                 (if (symbol=? (piece-color piece) 'w)
                   (cons sq-to orig-incl-all-w)
@@ -439,10 +443,10 @@
           (lambda (coords)
             (symbol=? (piece-color (piece-at-coords placement coords)) 'w))
           all-coords))
-      (if original-position
-        (let ((orig-incl-all-b (position-coords-incl-all-b original-position)))
-          (if original-move
-            (match original-move
+      (if parent-position
+        (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
+          (if parent-move
+            (match parent-move
               ((,piece ,sq-from ,sq-to)
                 (if (symbol=? (piece-color piece) 'b)
                   (cons sq-to orig-incl-all-b)
