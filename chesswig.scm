@@ -11,19 +11,19 @@
 
 (define caching? #t)
 
-(define E 0)
+(define P 1)
 (define R 2)
 (define N 3)
 (define B 4)
 (define Q 5)
 (define K 6)
-(define P 1)
-(define r 10)
-(define n 11)
-(define b 12)
-(define q 13)
-(define k 14)
-(define p 9)
+(define E 9)
+(define p 10)
+(define r 11)
+(define n 12)
+(define b 13)
+(define q 14)
+(define k 15)
 
 (define position-index-placement 0)
 (define position-index-active-color 1)
@@ -340,17 +340,15 @@
       check-or-checkmate-str))
   result)
 
-(define (white-piece? piece)
-  (and (< piece 8) (> piece 0)))
+(define (white-piece? piece) (< piece E))
 
-(define (black-piece? piece)
-  (and (>= piece 8) (> piece 0)))
+(define (black-piece? piece) (> piece E))
 
 (define (piece-color piece)
   (cond
-    ((= piece 0) 'empty)
-    ((< piece 8) 'w)
-    (else 'b)))
+    ((white-piece? piece) 'w)
+    ((black-piece? piece) 'b)
+    (else 'empty)))
 
 (define (toggled-color color)
   (if (symbol=? color 'w) 'b 'w))
@@ -699,7 +697,7 @@
   (define placement (position-placement position))
   (define unchecked-for-checks
     (if (= piece E) '()
-      (let ((color (piece-color piece)) (m (modulo piece 8)))
+      (let ((color (piece-color piece)) (m (modulo piece 9)))
         (cond
           ((= m 1)
             (available-squares-for-pawn piece color coords position))
