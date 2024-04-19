@@ -39,8 +39,8 @@
 (define position-index-check 9)
 (define position-index-can-king-be-captured 10)
 
-(define position-index-coords-with-no-black-pieces 11)
-(define position-index-coords-with-no-white-pieces 12)
+(define position-index-coords-incl-all-w 11)
+(define position-index-coords-incl-all-b 12)
 
 (define (position-placement p) (list-ref p position-index-placement))
 (define (position-active-color p) (list-ref p position-index-active-color))
@@ -48,6 +48,10 @@
 (define (position-en-passant p) (list-ref p position-index-en-passant))
 (define (position-halfmoves p) (list-ref p position-index-halfmoves))
 (define (position-fullmoves p) (list-ref p position-index-fullmoves))
+(define (position-coords-incl-all-w p)
+  (list-ref p position-index-coords-incl-all-w))
+(define (position-coords-incl-all-b p)
+  (list-ref p position-index-coords-incl-all-b))
 
 (define white-pieces (list P R N B Q K))
 (define black-pieces (list p r n b q k))
@@ -163,26 +167,36 @@
 
 (define (map-over-placement include-white? include-black? proc position)
   (define placement (position-placement position))
-  (define cs
-    (append
-      (if include-white?
-        (list-ref position position-index-coords-with-no-black-pieces) '())
-      (if include-black?
-        (list-ref position position-index-coords-with-no-white-pieces) '())))
-  (let loop ((result '()) (cs cs))
-    (if (null? cs) result
-      (let* (
-          (coords (car cs))
-          (piece (piece-at-coords placement coords))
-          (color (piece-color piece)))
-        (loop
-          (if
-            (or
-              (and include-white? (symbol=? color 'w))
-              (and include-black? (symbol=? color 'b)))
-            (cons (proc piece coords) result)
-            result)
-          (cdr cs))))))
+  (apply append
+    (map
+      (lambda (color-wanted)
+        (define cs
+          (if (symbol=? color-wanted 'w)
+            (position-coords-incl-all-w position)
+            (position-coords-incl-all-b position)))
+        (let loop ((result '()) (trimmed '()) (cs cs))
+          (if (null? cs)
+            (begin
+              (if (symbol=? color-wanted 'w)
+                (list-set! position position-index-coords-incl-all-w trimmed)
+                (list-set! position position-index-coords-incl-all-b trimmed))
+              result)
+            (let* (
+                (coords (car cs))
+                (piece-found (piece-at-coords placement coords))
+                (color-found (piece-color piece-found)))
+              (let ((correct-color? (symbol=? color-found color-wanted)))
+                (loop
+                  (if correct-color?
+                    (cons (proc piece-found coords) result)
+                    result)
+                  (if correct-color?
+                    (cons coords trimmed)
+                    trimmed)
+                  (cdr cs)))))))
+      (append
+        (if include-white? (list 'w) '())
+        (if include-black? (list 'b) '())))))
 
 (define (for-each-over-placement proc position)
   (for-each
@@ -387,7 +401,8 @@
   (string->number fullmoves-string))
 
 (define (make-position placement active-color castling
-                        en-passant halfmoves fullmoves)
+                        en-passant halfmoves
+                        fullmoves original-position original-move)
   (define pos
     (list
       placement
@@ -401,15 +416,32 @@
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
       (make-hashtable equal-hash equal?)
-      (filter
-        (lambda (coords)
-          (symbol=? (piece-color (piece-at-coords placement coords)) 'w))
-        all-coords)
-      (filter
-        (lambda (coords)
-          (symbol=? (piece-color (piece-at-coords placement coords)) 'b))
-        all-coords)
-      ))
+      (if original-position
+        (let ((orig-incl-all-w (position-coords-incl-all-w original-position)))
+          (if original-move
+            (match original-move
+              ((,piece ,sq-from ,sq-to)
+                (if (symbol=? (piece-color piece) 'w)
+                  (cons sq-to orig-incl-all-w)
+                  orig-incl-all-w)))
+            orig-incl-all-w))
+        (filter
+          (lambda (coords)
+            (symbol=? (piece-color (piece-at-coords placement coords)) 'w))
+          all-coords))
+      (if original-position
+        (let ((orig-incl-all-b (position-coords-incl-all-b original-position)))
+          (if original-move
+            (match original-move
+              ((,piece ,sq-from ,sq-to)
+                (if (symbol=? (piece-color piece) 'b)
+                  (cons sq-to orig-incl-all-b)
+                  orig-incl-all-b)))
+            orig-incl-all-b))
+        (filter
+          (lambda (coords)
+            (symbol=? (piece-color (piece-at-coords placement coords)) 'b))
+          all-coords))))
   (when track-positions-examined?
     (hashtable-set! positions-examined (encode-fen pos) 1))
   pos)
@@ -424,7 +456,10 @@
       (position-castling position)
       (position-en-passant position)
       (position-halfmoves position)
-      (position-fullmoves position))))
+      (position-fullmoves position)
+      position
+      #f
+      )))
 
 (define (decode-fen fen-string)
   (let ((field-strings (string-split fen-string #\ )))
@@ -436,6 +471,7 @@
         (decode-en-passant (list-ref field-strings 3))
         (decode-halfmoves (list-ref field-strings 4))
         (decode-fullmoves (list-ref field-strings 5))
+        #f #f
         ))))
 
 (define (inc-char char)
@@ -566,11 +602,6 @@
     (piece-color (piece-at-coords placement coords))
     color))
       
-(define (enemy-piece-at-coords? placement coords color)
-  (symbol=?
-    (piece-color (piece-at-coords placement coords))
-    (toggled-color color)))
-
 (define (piece-at-coords? placement coords)
   (not (= (piece-at-coords placement coords) E)))
 
@@ -738,7 +769,9 @@
       (1+ (position-halfmoves position)))
     (+
       (position-fullmoves position)
-      (if (symbol=? (position-active-color position) 'b) 1 0))))
+      (if (symbol=? (position-active-color position) 'b) 1 0))
+    position
+    move))
 
 (define (piece-base-value piece)
   (cond
@@ -776,26 +809,6 @@
               (lambda (piece coords)
                 (piece-base-value piece))
               position)))))))
-
-(define available-captures-from-position
-  (case-lambda
-    ((position) available-captures-from-position -1)
-    ((position limit)
-      (let loop (
-          (result '())
-          (len 0)
-          (moves (available-moves-from-position position)))
-        (if (or (= len limit) (null? moves)) result
-          (let ((move (car moves)))
-            (apply
-              loop
-              (let (
-                  (coords-to (caddr move))
-                  (placement (position-placement position))
-                  (active-color (position-active-color position)))
-                (if (enemy-piece-at-coords? placement coords-to active-color)
-                  (list (cons move result) (1+ len) (cdr moves))
-                  (list result len (cdr moves)))))))))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
