@@ -7,7 +7,7 @@
   display-eval-obj
   evaluate-position-at-ply
 )
-(import (chezscheme) (match match) (util))
+(import (chezscheme) (util))
 
 (define caching? #t)
 
@@ -57,6 +57,10 @@
 (define (position-en-passant p) (vector-ref p position-index-en-passant))
 (define (position-halfmoves p) (vector-ref p position-index-halfmoves))
 (define (position-fullmoves p) (vector-ref p position-index-fullmoves))
+(define (position-parent-position p)
+  (vector-ref p position-index-parent-position))
+(define (position-parent-move p)
+  (vector-ref p position-index-parent-move))
 (define (position-coords-incl-all-w p)
   (vector-ref p position-index-coords-incl-all-w))
 (define (position-coords-incl-all-b p)
@@ -164,23 +168,22 @@
       (let ((position (car args)) (rest (cdr args)))
         (let ((c (vector-ref position cache-index-in-position)))
           (let ((cached-result-pair (assoc rest c)))
-            (match cached-result-pair
-              ((,key . ,val) val)
-              (#f
-                (let ((result (apply proc args)))
-                  (vector-set!
-                    position
-                    cache-index-in-position
-                    (cons (cons rest result) c))
-                  result)))))))))
+            (if cached-result-pair
+              (cdr cached-result-pair)
+              (let ((result (apply proc args)))
+                (vector-set!
+                  position
+                  cache-index-in-position
+                  (cons (cons rest result) c))
+                result))
+            ))))))
 
 (define all-coords (iota 64))
 
-(define (placement-ref placement coords)
-  (bytevector-u8-ref placement coords))
+(define (placement-ref position coords)
+  (bytevector-u8-ref (position-placement position) coords))
 
 (define (map-over-placement include-white? include-black? proc position)
-  (define placement (position-placement position))
   (apply append
     (map
       (lambda (color-wanted)
@@ -197,7 +200,7 @@
               result)
             (let* (
                 (coords (car cs))
-                (piece-found (piece-at-coords placement coords))
+                (piece-found (piece-at-coords position coords))
                 (color-found (piece-color piece-found)))
               (let ((correct-color? (symbol=? color-found color-wanted)))
                 (loop
@@ -215,7 +218,7 @@
 (define (for-each-over-placement proc position)
   (for-each
     (lambda (coords)
-      (proc (placement-ref (position-placement position) coords) coords))
+      (proc (placement-ref position coords) coords))
     all-coords))
 
 (define (char->symbol char)
@@ -273,16 +276,15 @@
     (file-to-alg (car (coords-to-cls sq)))
     (rank-to-alg (cadr (coords-to-cls sq)))))
 
-(define (is-move-capture? placement move)
-  (piece-at-coords? placement (caddr move)))
+(define (is-move-capture? position move)
+  (piece-at-coords? position (caddr move)))
 
 (define (move-to-alg position move)
   (define piece-moving (car move))
   (define sq-from (cadr move))
   (define sq-to (caddr move))
   (define sq-to-str (square-to-alg sq-to))
-  (define placement (position-placement position))
-  (define capture? (is-move-capture? placement move))
+  (define capture? (is-move-capture? position move))
   (define capture-str (if capture? "x" ""))
   (define piece-moving-str
     (cond
@@ -382,8 +384,8 @@
     '()
     (string->list rank-string)))
 
-(define (piece-at-coords placement coords)
-  (placement-ref placement coords))
+(define (piece-at-coords position coords)
+  (placement-ref position coords))
 
 (define (decode-placement-data placement-data-string)
   (u8-list->bytevector
@@ -425,37 +427,34 @@
       fullmoves
       parent-position
       parent-move
-      '()
-      '()
-      '()
-      '()
-      '()
-      (if parent-position
-        (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
-          (if parent-move
-            (match parent-move
-              ((,piece ,sq-from ,sq-to)
-                (if (symbol=? (piece-color piece) 'w)
-                  (cons sq-to orig-incl-all-w)
-                  orig-incl-all-w)))
-            orig-incl-all-w))
-        (filter
-          (lambda (coords)
-            (symbol=? (piece-color (piece-at-coords placement coords)) 'w))
-          all-coords))
-      (if parent-position
-        (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
-          (if parent-move
-            (match parent-move
-              ((,piece ,sq-from ,sq-to)
-                (if (symbol=? (piece-color piece) 'b)
-                  (cons sq-to orig-incl-all-b)
-                  orig-incl-all-b)))
-            orig-incl-all-b))
-        (filter
-          (lambda (coords)
-            (symbol=? (piece-color (piece-at-coords placement coords)) 'b))
-          all-coords))))
+      '() '() '() '() '()
+      'unset
+      'unset
+      ))
+  (vector-set! pos position-index-coords-incl-all-w
+    (if parent-position
+      (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
+        (if parent-move
+          (if (symbol=? (piece-color (car parent-move)) 'w)
+            (cons (caddr parent-move) orig-incl-all-w)
+            orig-incl-all-w)
+          orig-incl-all-w))
+      (filter
+        (lambda (coords)
+          (symbol=? (piece-color (piece-at-coords pos coords)) 'w))
+        all-coords)))
+  (vector-set! pos position-index-coords-incl-all-b
+    (if parent-position
+      (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
+        (if parent-move
+          (if (symbol=? (piece-color (car parent-move)) 'b)
+            (cons (caddr parent-move) orig-incl-all-b)
+            orig-incl-all-b)
+          orig-incl-all-b))
+      (filter
+        (lambda (coords)
+          (symbol=? (piece-color (piece-at-coords pos coords)) 'b))
+        all-coords)))
   (when track-positions-examined?
     (hashtable-set! positions-examined (encode-fen pos) 1))
   pos)
@@ -611,13 +610,13 @@
     (vector-ref cache:all-coords-in-direction coords)
     direction))
 
-(define (friendly-piece-at-coords? placement coords color)
+(define (friendly-piece-at-coords? position coords color)
   (symbol=?
-    (piece-color (piece-at-coords placement coords))
+    (piece-color (piece-at-coords position coords))
     color))
       
-(define (piece-at-coords? placement coords)
-  (not (= (piece-at-coords placement coords) E)))
+(define (piece-at-coords? position coords)
+  (not (= (piece-at-coords position coords) E)))
 
 (define is-position-check?
   (memoized-proc position-index-check
@@ -631,11 +630,10 @@
         (if (null? moves)
           #f
           (let ((move (car moves)))
-            (match move
-              ((,piece ,sq-from ,sq-to)
-                (if (= (piece-at-coords placement sq-to) king-to-capture)
-                  #t
-                  (loop (cdr moves)))))))))))
+            (if (= (piece-at-coords position (caddr move)) king-to-capture)
+              #t
+              (loop (cdr moves)))
+            ))))))
 
 (define (is-position-checkmate? position)
   (and
@@ -666,7 +664,6 @@
 (define can-king-be-captured?
   (memoized-proc position-index-can-king-be-captured
     (lambda (position)
-      (define placement (position-placement position))
       (define active-color (position-active-color position))
       (define king (if (symbol=? active-color 'w) k K))
       (define is-piece-of-active-color?
@@ -675,12 +672,11 @@
         (if (null? moves)
           #f
           (let ((move (car moves)))
-            (if (= (piece-at-coords placement (caddr move)) king)
+            (if (= (piece-at-coords position (caddr move)) king)
               #t
               (loop (cdr moves)))))))))
 
 (define (available-squares-for-pawn piece color coords position)
-  (define placement (position-placement position))
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
   (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
   (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
@@ -695,7 +691,6 @@
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
 (define (available-squares-for-knight piece color coords position)
-  (define placement (position-placement position))
   (let loop ((sqs '()) (knight-directions knight-directions))
     (if (null? knight-directions) sqs
       (let ((dir (car knight-directions)))
@@ -705,14 +700,13 @@
               (or
                 (null? sqs-in-dir)
                 (friendly-piece-at-coords?
-                  placement (car sqs-in-dir) color))
+                  position (car sqs-in-dir) color))
               sqs
               (cons (car sqs-in-dir) sqs)))
           (cdr knight-directions))))))
 
 (define (available-squares-from-coords
           piece coords position dont-allow-exposed-king)
-  (define placement (position-placement position))
   (define unchecked-for-checks
     (if (= piece E) '()
       (let ((color (piece-color piece)) (m (modulo piece E)))
@@ -763,13 +757,12 @@
           position)))))
 
 (define (position-after-move position move)
-  (define placement (position-placement position))
   (define coords-from (cadr move))
   (define coords-to (caddr move))
-  (define piece-moving (piece-at-coords placement coords-from))
-  (define capture? (piece-at-coords? placement coords-to))
+  (define piece-moving (piece-at-coords position coords-from))
+  (define capture? (piece-at-coords? position coords-to))
   (define pawn-move? (= (modulo piece-moving E) 1))
-  (define new-placement (bytevector-copy placement))
+  (define new-placement (bytevector-copy (position-placement position)))
   (bytevector-u8-set! new-placement coords-from E)
   (bytevector-u8-set! new-placement coords-to piece-moving)
   (make-position
@@ -827,29 +820,30 @@
 ; ((val move-seq) ...)
 
 (define (less-predicate-for-eval-objs left-ls right-ls)
-  (match left-ls
-    ((,left-val ,left-move-seq ,- ...)
-      (match right-ls
-        ((,right-val ,right-move-seq ,- ...)
-          (cond
-            ((and
-              (infinite? left-val)
-              (infinite? right-val)
-              (= left-val right-val))
-                (if (< left-val 0)
-              ; When comparing two won sequences for black the
-              ; best for black is the one where black wins in
-              ; the fewest moves.
-                  (<
-                    (length left-move-seq)
-                    (length right-move-seq))
-              ; When comparing two won sequences for white the
-              ; best for black is the one where white wins in
-              ; the most moves.
-                  (>
-                    (length left-move-seq)
-                    (length right-move-seq))))
-            (else (< left-val right-val))))))))
+  (let* (
+      (left-val (car left-ls))
+      (left-move-seq (cadr left-ls))
+      (right-val (car right-ls))
+      (right-move-seq (cadr right-ls)))
+    (cond
+      ((and
+        (infinite? left-val)
+        (infinite? right-val)
+        (= left-val right-val))
+          (if (< left-val 0)
+        ; When comparing two won sequences for black the
+        ; best for black is the one where black wins in
+        ; the fewest moves.
+            (<
+              (length left-move-seq)
+              (length right-move-seq))
+        ; When comparing two won sequences for white the
+        ; best for black is the one where white wins in
+        ; the most moves.
+            (>
+              (length left-move-seq)
+              (length right-move-seq))))
+      (else (< left-val right-val)))))
 
 (define (display-val val)
   (cond
@@ -892,20 +886,20 @@
 (define (display-eval-obj position eval-obj)
   (let loop ((eval-obj eval-obj))
     (unless (null? eval-obj)
-      (match (car eval-obj)
-        ((,val ,move-seq ,- ...)
+      (let ((val+move-seq (car eval-obj)))
+        (let ((val (car val+move-seq)) (move-seq (cadr val+move-seq)))
           (display-val val)
           (display " ")
           (if (null? move-seq)
             (display "(no moves)")
             (display-move-seq position move-seq))
           (newline)
-          (loop (cdr eval-obj)))))))
+          (loop (cdr eval-obj))))
+      )))
 
 (define (available-squares-along-direction
           piece color coords-from position direction
           max-distance allowed-to-capture? allowed-to-move-to-empty?)
-  (define placement (position-placement position))
   (let loop (
       (all-coords (all-coords-in-direction coords-from direction))
       (max-distance max-distance)
@@ -914,7 +908,7 @@
       result
       (let* (
           (coords (car all-coords))
-          (piece-found (piece-at-coords placement coords)))
+          (piece-found (piece-at-coords position coords)))
         (if (= piece-found E)
           (if (not allowed-to-move-to-empty?) result
             (loop
@@ -958,8 +952,8 @@
   ; list L of lists M with M = (evaluation move-seq-until-ply)
   ;
   ; (first) here picks the best continuation for the opponent.
-  (match (first eval-obj)
-    ((,val ,move-seq ,- ...)
+  (let ((val+move-seq (first eval-obj)))
+    (let* ((val (car val+move-seq)) (move-seq (cadr val+move-seq)))
       (list
         val
         (cons move move-seq)))))
