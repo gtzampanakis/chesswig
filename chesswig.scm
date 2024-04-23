@@ -175,13 +175,49 @@
                   position
                   cache-index-in-position
                   (cons (cons rest result) c))
-                result))
-            ))))))
+                result))))))))
 
 (define all-coords (iota 64))
 
+(define placement-allocation-offset 0)
+(define placement-data (make-bytevector (* 4000000 64) E))
+
 (define (placement-ref position coords)
-  (bytevector-u8-ref (position-placement position) coords))
+  (let ((bv+offset (position-placement position)))
+    (let ((bv (car bv+offset)) (offset (cadr bv+offset)))
+      (bytevector-u8-ref bv (+ offset coords)))))
+
+(define (list->placement ls)
+  (list (u8-list->bytevector ls) 0))
+
+(define (placement->list placement)
+  (let ((bv+offset placement))
+    (let ((bv (car bv+offset)) (offset (cadr bv+offset)))
+      (let ((bv-short (make-bytevector 64)))
+        (bytevector-copy! bv offset bv-short 0 64)
+        (bytevector->u8-list bv-short)))))
+
+(define (placement-copy placement)
+  ;(let ((bv+offset placement))
+  ;  (let ((bv (car bv+offset)) (offset (cadr bv+offset)))
+  ;    (list
+  ;      (bytevector-copy bv)
+  ;      0))))
+  (let ((offset-to-return placement-allocation-offset))
+    (let ((bv+offset placement))
+      (let ((bv (car bv+offset)) (offset (cadr bv+offset)))
+        (bytevector-copy! bv offset placement-data offset-to-return 64)
+        (set! placement-allocation-offset (+ offset-to-return 64))
+        ;(d (placement->list placement))
+        ;(d (placement->list (list placement-data offset-to-return)))
+        ;(d offset-to-return)
+        ;(d "")
+        (list placement-data offset-to-return)))))
+
+(define (placement-set! placement index value)
+  (let ((bv+offset placement))
+    (let ((bv (car bv+offset)) (offset (cadr bv+offset)))
+      (bytevector-u8-set! bv (+ offset index) value))))
 
 (define (map-over-placement include-white? include-black? proc position)
   (apply append
@@ -388,7 +424,7 @@
   (placement-ref position coords))
 
 (define (decode-placement-data placement-data-string)
-  (u8-list->bytevector
+  (list->placement
     (reverse
       (let ((rank-strings (string-split placement-data-string #\/)))
         (apply append (map decode-rank rank-strings))))))
@@ -505,7 +541,7 @@
   (define en-passant (position-en-passant position))
   (define halfmoves (position-halfmoves position))
   (define fullmoves (position-fullmoves position))
-  (define placement-list (bytevector->u8-list placement))
+  (define placement-list (placement->list placement))
   (define placement-chars
     (let loop ((r 7) (result '()) (placement-list placement-list))
       (if (= r -1)
@@ -762,9 +798,9 @@
   (define piece-moving (piece-at-coords position coords-from))
   (define capture? (piece-at-coords? position coords-to))
   (define pawn-move? (= (modulo piece-moving E) 1))
-  (define new-placement (bytevector-copy (position-placement position)))
-  (bytevector-u8-set! new-placement coords-from E)
-  (bytevector-u8-set! new-placement coords-to piece-moving)
+  (define new-placement (placement-copy (position-placement position)))
+  (placement-set! new-placement coords-from E)
+  (placement-set! new-placement coords-to piece-moving)
   (make-position
     new-placement
     (toggled-color (position-active-color position))
