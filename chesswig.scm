@@ -622,7 +622,6 @@
   (memoized-proc position-index-check
     (lambda (position-in)
       (define position (position-copy-w-toggled-active-color position-in))
-      (define placement (position-placement position))
       (define king-to-capture
         (if (symbol=? (position-active-color position) 'w) k K)) 
       (define moves (available-moves-from-position position))
