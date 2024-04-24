@@ -631,8 +631,7 @@
           (let ((move (car moves)))
             (if (= (piece-at-coords position (caddr move)) king-to-capture)
               #t
-              (loop (cdr moves)))
-            ))))))
+              (loop (cdr moves)))))))))
 
 (define (is-position-checkmate? position)
   (and
