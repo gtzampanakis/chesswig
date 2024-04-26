@@ -316,7 +316,7 @@
                               (cadr (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
-                         piece coords position #t)))))))
+                         piece coords position #f)))))))
           position)
         "")))
   (define file-str
@@ -337,7 +337,7 @@
                               (car (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
-                         piece coords position #t)))))))
+                         piece coords position #f)))))))
           position)
         "")))
   (define next-position (position-after-move position move))
@@ -666,7 +666,7 @@
       (define king (if (symbol=? active-color 'w) k K))
       (define is-piece-of-active-color?
         (if (symbol=? active-color 'w) white-piece? black-piece?))
-      (let loop ((moves (available-moves-from-position position #f)))
+      (let loop ((moves (available-moves-from-position position #t)))
         (if (null? moves)
           #f
           (let ((move (car moves)))
@@ -704,7 +704,7 @@
           (cdr knight-directions))))))
 
 (define (available-squares-from-coords
-          piece coords position dont-allow-exposed-king)
+          piece coords position allow-king-in-check)
   (define unchecked-for-checks
     (if (= piece E) '()
       (let ((color (piece-color piece)) (m (modulo piece E)))
@@ -721,24 +721,24 @@
             (available-squares-for-queen piece color coords position))
           ((= m K-base)
             (available-squares-for-king piece color coords position))))))
-  (if dont-allow-exposed-king
+  (if allow-king-in-check
+    unchecked-for-checks
     (filter
       (lambda (sq-to)
         (not (can-king-be-captured?
               (position-after-move position (list piece coords sq-to)))))
-      unchecked-for-checks)
-    unchecked-for-checks))
+      unchecked-for-checks)))
 
 (define available-moves-from-position
   (case-lambda
-    ((position) (available-moves-from-position position #t))
-    ((position dont-allow-exposed-king)
+    ((position) (available-moves-from-position position #f))
+    ((position allow-king-in-check)
       (available-moves-from-position-full-args
-            position dont-allow-exposed-king))))
+            position allow-king-in-check))))
 
 (define available-moves-from-position-full-args
   (memoized-proc position-index-moves
-    (lambda (position dont-allow-exposed-king)
+    (lambda (position allow-king-in-check)
       (define active-color (position-active-color position))
       (define white-to-play? (symbol=? active-color 'w))
       (define black-to-play? (symbol=? active-color 'b))
@@ -751,7 +751,7 @@
               (lambda (coords-to)
                 (list piece coords-from coords-to))
               (available-squares-from-coords
-                  piece coords-from position dont-allow-exposed-king)))
+                  piece coords-from position allow-king-in-check)))
           position)))))
 
 (define (position-after-move position move)
