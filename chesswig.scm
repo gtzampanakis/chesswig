@@ -316,7 +316,7 @@
                               (cadr (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
-                         piece coords position #f)))))))
+                           position piece coords)))))))
           position)
         "")))
   (define file-str
@@ -337,7 +337,7 @@
                               (car (coords-to-cls sq-from))))
                           (exit)))
                       (available-squares-from-coords
-                         piece coords position #f)))))))
+                           position piece coords)))))))
           position)
         "")))
   (define next-position (position-after-move position move))
@@ -470,7 +470,7 @@
       (position-en-passant position)
       (position-halfmoves position)
       (position-fullmoves position)
-      position
+      #f
       #f
       )))
 
@@ -643,19 +643,19 @@
     (null? (available-moves-from-position position))
     (not (is-position-check? position))))
 
-(define (available-squares-for-rook piece color coords position)
+(define (available-squares-for-rook position piece color coords)
   (available-squares-along-directions
       piece color coords position rook-directions 7 #t #t))
 
-(define (available-squares-for-bishop piece color coords position)
+(define (available-squares-for-bishop position piece color coords)
   (available-squares-along-directions
       piece color coords position bishop-directions 7 #t #t))
 
-(define (available-squares-for-queen piece color coords position)
+(define (available-squares-for-queen position piece color coords)
   (available-squares-along-directions
       piece color coords position queen-directions 7 #t #t))
 
-(define (available-squares-for-king piece color coords position)
+(define (available-squares-for-king position piece color coords)
   (available-squares-along-directions
       piece color coords position king-directions 1 #t #t))
 
@@ -674,7 +674,7 @@
               #t
               (loop (cdr moves)))))))))
 
-(define (available-squares-for-pawn piece color coords position)
+(define (available-squares-for-pawn position piece color coords)
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
   (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
   (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
@@ -688,7 +688,7 @@
       piece color coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
-(define (available-squares-for-knight piece color coords position)
+(define (available-squares-for-knight position piece color coords)
   (let loop ((sqs '()) (knight-directions knight-directions))
     (if (null? knight-directions) sqs
       (let ((dir (car knight-directions)))
@@ -703,62 +703,65 @@
               (cons (car sqs-in-dir) sqs)))
           (cdr knight-directions))))))
 
-(define (available-squares-from-coords
-          piece coords position allow-king-in-check)
-  (let (
-      (unchecked-for-checks
-        (if (= piece E) '()
-          (let ((color (piece-color piece)) (m (modulo piece E)))
+(define (available-squares-from-coords position piece coords)
+  (if (= piece E) '()
+    (let ((m (modulo piece E)))
+      (let (
+          (proc
             (cond
-              ((= m P-base)
-                (available-squares-for-pawn piece color coords position))
-              ((= m R-base)
-                (available-squares-for-rook piece color coords position))
-              ((= m B-base)
-                (available-squares-for-bishop piece color coords position))
-              ((= m N-base)
-                (available-squares-for-knight piece color coords position))
-              ((= m Q-base)
-                (available-squares-for-queen piece color coords position))
-              ((= m K-base)
-                (available-squares-for-king piece color coords position)))))))
-    (if allow-king-in-check
-      unchecked-for-checks
-      (filter-out-sqs-to-that-bring-king-in-check
-                  position piece coords unchecked-for-checks))))
+              ((= m P-base) available-squares-for-pawn)
+              ((= m R-base) available-squares-for-rook)
+              ((= m B-base) available-squares-for-bishop)
+              ((= m N-base) available-squares-for-knight)
+              ((= m Q-base) available-squares-for-queen)
+              ((= m K-base) available-squares-for-king))))
+        (proc position piece (piece-color piece) coords)))))
 
-(define (filter-out-sqs-to-that-bring-king-in-check
-                          position piece sq-from sqs-to)
+(define (filter-out-moves-to-that-bring-king-in-check position moves)
   (filter
-    (lambda (sq-to)
-      (not (can-king-be-captured?
-            (position-after-move position piece sq-from sq-to))))
-    sqs-to))
+    (lambda (move)
+      (not (can-king-be-captured? (position-after-move position move))))
+    moves))
 
 (define available-moves-from-position
   (case-lambda
     ((position) (available-moves-from-position position #f))
     ((position allow-king-in-check)
-      (available-moves-from-position-full-args
-            position allow-king-in-check))))
+      (available-moves-from-position-full-args position allow-king-in-check))))
 
 (define available-moves-from-position-full-args
   (memoized-proc position-index-moves
     (lambda (position allow-king-in-check)
-      (define active-color (position-active-color position))
-      (define white-to-play? (symbol=? active-color 'w))
-      (define black-to-play? (symbol=? active-color 'b))
-      (apply append
-        (map-over-placement
-          white-to-play?
-          black-to-play?
-          (lambda (piece coords-from)
-            (map
-              (lambda (coords-to)
-                (list piece coords-from coords-to))
-              (available-squares-from-coords
-                  piece coords-from position allow-king-in-check)))
-          position)))))
+      (let (
+          (with-king-possibly-in-check
+            (let ((parent-move (position-parent-move position)))
+              (if #t
+                (let* (
+                    (active-color (position-active-color position))
+                    (white-to-play? (symbol=? active-color 'w))
+                    (black-to-play? (symbol=? active-color 'b)))
+                  (apply append
+                    (map-over-placement
+                      white-to-play?
+                      black-to-play?
+                      (lambda (piece coords-from)
+                        (map
+                          (lambda (coords-to)
+                            (list piece coords-from coords-to))
+                          (available-squares-from-coords
+                              position piece coords-from)))
+                      position)))
+                ;(let ((parent-pos (parent-position position)))
+                ;  (let (
+                ;      (available-moves-from-parent-pos
+                ;        (available-moves-from-position-full-args
+                ;          parent-pos allow-king-in-check)
+                ))))
+        (if allow-king-in-check
+          with-king-possibly-in-check
+          (filter-out-moves-to-that-bring-king-in-check
+                      position with-king-possibly-in-check))))
+      ))
 
 (define position-after-move
   (case-lambda
