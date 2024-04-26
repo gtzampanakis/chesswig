@@ -705,29 +705,35 @@
 
 (define (available-squares-from-coords
           piece coords position allow-king-in-check)
-  (define unchecked-for-checks
-    (if (= piece E) '()
-      (let ((color (piece-color piece)) (m (modulo piece E)))
-        (cond
-          ((= m P-base)
-            (available-squares-for-pawn piece color coords position))
-          ((= m R-base)
-            (available-squares-for-rook piece color coords position))
-          ((= m B-base)
-            (available-squares-for-bishop piece color coords position))
-          ((= m N-base)
-            (available-squares-for-knight piece color coords position))
-          ((= m Q-base)
-            (available-squares-for-queen piece color coords position))
-          ((= m K-base)
-            (available-squares-for-king piece color coords position))))))
-  (if allow-king-in-check
-    unchecked-for-checks
-    (filter
-      (lambda (sq-to)
-        (not (can-king-be-captured?
-              (position-after-move position (list piece coords sq-to)))))
-      unchecked-for-checks)))
+  (let (
+      (unchecked-for-checks
+        (if (= piece E) '()
+          (let ((color (piece-color piece)) (m (modulo piece E)))
+            (cond
+              ((= m P-base)
+                (available-squares-for-pawn piece color coords position))
+              ((= m R-base)
+                (available-squares-for-rook piece color coords position))
+              ((= m B-base)
+                (available-squares-for-bishop piece color coords position))
+              ((= m N-base)
+                (available-squares-for-knight piece color coords position))
+              ((= m Q-base)
+                (available-squares-for-queen piece color coords position))
+              ((= m K-base)
+                (available-squares-for-king piece color coords position)))))))
+    (if allow-king-in-check
+      unchecked-for-checks
+      (filter-out-sqs-to-that-bring-king-in-check
+                  position piece coords unchecked-for-checks))))
+
+(define (filter-out-sqs-to-that-bring-king-in-check
+                          position piece sq-from sqs-to)
+  (filter
+    (lambda (sq-to)
+      (not (can-king-be-captured?
+            (position-after-move position piece sq-from sq-to))))
+    sqs-to))
 
 (define available-moves-from-position
   (case-lambda
@@ -754,28 +760,32 @@
                   piece coords-from position allow-king-in-check)))
           position)))))
 
-(define (position-after-move position move)
-  (define coords-from (cadr move))
-  (define coords-to (caddr move))
-  (define piece-moving (piece-at-coords position coords-from))
-  (define capture? (piece-at-coords? position coords-to))
-  (define pawn-move? (= (modulo piece-moving E) 1))
-  (define new-placement (bytevector-copy (position-placement position)))
-  (bytevector-u8-set! new-placement coords-from E)
-  (bytevector-u8-set! new-placement coords-to piece-moving)
-  (make-position
-    new-placement
-    (toggled-color (position-active-color position))
-    (position-castling position)
-    (position-en-passant position)
-    (if (or capture? pawn-move?)
-      0
-      (1+ (position-halfmoves position)))
-    (+
-      (position-fullmoves position)
-      (if (symbol=? (position-active-color position) 'b) 1 0))
-    position
-    move))
+(define position-after-move
+  (case-lambda
+    ((position piece coords-from coords-to)
+      (position-after-move position (list piece coords-from coords-to)))
+    ((position move)
+      (define piece (car move))
+      (define coords-from (cadr move))
+      (define coords-to (caddr move))
+      (define capture? (piece-at-coords? position coords-to))
+      (define pawn-move? (= (modulo piece E) 1))
+      (define new-placement (bytevector-copy (position-placement position)))
+      (bytevector-u8-set! new-placement coords-from E)
+      (bytevector-u8-set! new-placement coords-to piece)
+      (make-position
+        new-placement
+        (toggled-color (position-active-color position))
+        (position-castling position)
+        (position-en-passant position)
+        (if (or capture? pawn-move?)
+          0
+          (1+ (position-halfmoves position)))
+        (+
+          (position-fullmoves position)
+          (if (symbol=? (position-active-color position) 'b) 1 0))
+        position
+        move))))
 
 (define (piece-base-value piece)
   (cond
