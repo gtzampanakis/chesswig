@@ -624,7 +624,7 @@
       (define position (position-copy-w-toggled-active-color position-in))
       (define king-to-capture
         (if (symbol=? (position-active-color position) 'w) k K)) 
-      (define moves (legal-moves-from-position position #f))
+      (define moves (legal-moves position #f))
       (let loop ((moves moves))
         (if (null? moves)
           #f
@@ -635,12 +635,12 @@
 
 (define (is-position-checkmate? position)
   (and
-    (null? (legal-moves-from-position position #f))
+    (null? (legal-moves position #f))
     (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (null? (legal-moves-from-position position #f))
+    (null? (legal-moves position #f))
     (not (is-position-check? position))))
 
 (define (legal-squares-for-rook position piece color coords)
@@ -666,7 +666,7 @@
       (define king (if (symbol=? active-color 'w) k K))
       (define is-piece-of-active-color?
         (if (symbol=? active-color 'w) white-piece? black-piece?))
-      (let loop ((moves (legal-moves-from-position position #t)))
+      (let loop ((moves (legal-moves position #t)))
         (if (null? moves)
           #f
           (let ((move (car moves)))
@@ -723,22 +723,28 @@
       (not (can-king-be-captured? (position-after-move position move))))
     moves))
 
-(define legal-moves-from-position
+(define legal-moves
   (memoized-proc position-index-moves
     (lambda (position allow-king-in-check)
       (let (
           (moves-w-king-possibly-in-check
-            (legal-moves-from-position-w-king-possibly-in-check
+            (legal-moves-w-king-possibly-in-check
               position)))
         (if allow-king-in-check
           moves-w-king-possibly-in-check
           (filter-out-moves-to-that-bring-king-in-check
                       position moves-w-king-possibly-in-check))))))
 
-(define legal-moves-from-position-w-king-possibly-in-check
+(define legal-moves-w-king-possibly-in-check
   (lambda (position)
     (let ((parent-move (position-parent-move position)))
-      (if #t
+      (if (and parent-move #f)
+        'foo
+        ;(let ((parent-pos (parent-position position)))
+        ;  (let (
+        ;      (legal-moves-from-parent-pos
+        ;        (legal-moves-full-args
+        ;          parent-pos allow-king-in-check)
         (let* (
             (active-color (position-active-color position))
             (white-to-play? (symbol=? active-color 'w))
@@ -753,13 +759,7 @@
                     (list piece coords-from coords-to))
                   (legal-squares-from-coords
                       position piece coords-from)))
-              position)))
-        ;(let ((parent-pos (parent-position position)))
-        ;  (let (
-        ;      (legal-moves-from-parent-pos
-        ;        (legal-moves-from-position-full-args
-        ;          parent-pos allow-king-in-check)
-        ))))
+              position)))))))
 
 (define position-after-move
   (case-lambda
@@ -977,7 +977,7 @@
 (define (evaluate-position-at-nonzero-ply
           position ply admissible-moves-pred quiescence-search?)
   (let (
-      (all-moves (legal-moves-from-position position #f))
+      (all-moves (legal-moves position #f))
       (pred
         (cond
           ((symbol=? admissible-moves-pred 'admit-all)
