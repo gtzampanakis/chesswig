@@ -737,29 +737,21 @@
 
 (define legal-moves-w-king-possibly-in-check
   (lambda (position)
-    (let ((parent-move (position-parent-move position)))
-      (if (and parent-move #f)
-        'foo
-        ;(let ((parent-pos (parent-position position)))
-        ;  (let (
-        ;      (legal-moves-from-parent-pos
-        ;        (legal-moves-full-args
-        ;          parent-pos allow-king-in-check)
-        (let* (
-            (active-color (position-active-color position))
-            (white-to-play? (symbol=? active-color 'w))
-            (black-to-play? (symbol=? active-color 'b)))
-          (apply append
-            (map-over-placement
-              white-to-play?
-              black-to-play?
-              (lambda (piece coords-from)
-                (map
-                  (lambda (coords-to)
-                    (list piece coords-from coords-to))
-                  (legal-squares-from-coords
-                      position piece coords-from)))
-              position)))))))
+    (let* (
+        (active-color (position-active-color position))
+        (white-to-play? (symbol=? active-color 'w))
+        (black-to-play? (symbol=? active-color 'b)))
+      (apply append
+        (map-over-placement
+          white-to-play?
+          black-to-play?
+          (lambda (piece coords-from)
+            (map
+              (lambda (coords-to)
+                (list piece coords-from coords-to))
+              (legal-squares-from-coords
+                  position piece coords-from)))
+          position)))))
 
 (define position-after-move
   (case-lambda
