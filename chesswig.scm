@@ -664,8 +664,6 @@
     (lambda (position)
       (define active-color (position-active-color position))
       (define king (if (symbol=? active-color 'w) k K))
-      (define is-piece-of-active-color?
-        (if (symbol=? active-color 'w) white-piece? black-piece?))
       (let loop ((moves (legal-moves position #t)))
         (if (null? moves)
           #f
