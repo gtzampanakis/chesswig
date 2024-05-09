@@ -7,7 +7,7 @@
   display-eval-obj
   evaluate-position-at-ply
 )
-(import (chezscheme) (util))
+(import (chezscheme) (util) (unpack))
 
 (define caching? #t)
 
@@ -756,27 +756,25 @@
     ((position piece coords-from coords-to)
       (position-after-move position (list piece coords-from coords-to)))
     ((position move)
-      (define piece (car move))
-      (define coords-from (cadr move))
-      (define coords-to (caddr move))
-      (define capture? (piece-at-coords? position coords-to))
-      (define pawn-move? (= (modulo piece E) 1))
-      (define new-placement (bytevector-copy (position-placement position)))
-      (bytevector-u8-set! new-placement coords-from E)
-      (bytevector-u8-set! new-placement coords-to piece)
-      (make-position
-        new-placement
-        (toggled-color (position-active-color position))
-        (position-castling position)
-        (position-en-passant position)
-        (if (or capture? pawn-move?)
-          0
-          (1+ (position-halfmoves position)))
-        (+
-          (position-fullmoves position)
-          (if (symbol=? (position-active-color position) 'b) 1 0))
-        position
-        move))))
+      (list-unpack move (piece coords-from coords-to)
+        (define capture? (piece-at-coords? position coords-to))
+        (define pawn-move? (= (modulo piece E) 1))
+        (define new-placement (bytevector-copy (position-placement position)))
+        (bytevector-u8-set! new-placement coords-from E)
+        (bytevector-u8-set! new-placement coords-to piece)
+        (make-position
+          new-placement
+          (toggled-color (position-active-color position))
+          (position-castling position)
+          (position-en-passant position)
+          (if (or capture? pawn-move?)
+            0
+            (1+ (position-halfmoves position)))
+          (+
+            (position-fullmoves position)
+            (if (symbol=? (position-active-color position) 'b) 1 0))
+          position
+          move)))))
 
 (define (piece-base-value piece)
   (cond
