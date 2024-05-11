@@ -18,6 +18,9 @@
   list-set!
   seconds-since-epoch
   argmax
+  make-queue
+  worker-proc
+  parallel-map
   )
 (import
   (chezscheme))
@@ -158,4 +161,78 @@
           (else
             h))))))
 
+(define-syntax queue-push!
+  (syntax-rules ()
+    ((_ obj ls)
+      (set! ls (cons obj ls)))))
+
+(define-syntax queue-pop!
+  (syntax-rules ()
+    ((_ ls)
+      (if (null? ls)
+        #f
+        (let ((r (car ls)))
+          (set! ls (cdr ls))
+          r)))))
+
+(define (make-queue)
+; Taken from https://irreal.org/blog/?p=40
+    (let (
+        (front '()) (back '())
+        (mutex (make-mutex)) (condition (make-condition)))
+      (lambda (cmd . data)
+        (define exchange
+          (lambda ()
+            (set! front (reverse back))
+            (set! back '())))
+        (case cmd
+          ((push)
+            (with-mutex mutex
+              (queue-push! (car data) back)
+              (condition-signal condition)))
+          ((pop) (with-mutex mutex
+                    (or
+                      (queue-pop! front)
+                      (begin
+                        (exchange)
+                        (queue-pop! front))
+                      (begin
+                        (condition-wait condition mutex)
+                        (or
+                          (queue-pop! front)
+                          (begin
+                            (exchange)
+                            (queue-pop! front)))))))
+          ((peek) (unless (pair? front)
+                    (exchange))
+                    (car front))
+          ((show) (format #t "~s\n" (append front (reverse back))))
+          ((fb) (format #t "front: ~s, back: ~s\n" front back))
+          (else (error "Illegal cmd to queue object" cmd))))))
+
+(define (worker-proc q-input q-output)
+  (let loop ()
+    (let ((obj (q-input 'pop)))
+      (apply
+        (lambda (id proc args)
+          (let ((result (apply proc args)))
+            (q-output 'push (list id result))))
+        obj)
+      (loop))))
+
+(define (parallel-map f ls q-worker-input q-worker-output)
+  (let ((result-ls (make-list (length ls))))
+    (let loop ((i 0) (ls ls))
+      (unless (null? ls)
+        (q-worker-input 'push (list i f (list (car ls))))
+        (loop (+ i 1) (cdr ls))))
+    (let loop ((ndone 0))
+      (when (< ndone (length ls))
+        (let ((output-obj (q-worker-output 'pop)))
+          (apply
+            (lambda (id result)
+              (list-set! result-ls id result))
+            output-obj))
+        (loop (+ ndone 1))))
+    result-ls))
 )
