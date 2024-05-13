@@ -581,7 +581,7 @@
           ((= direction dir-nlu) (values (- f 2) (+ r 1)))
           ((= direction dir-nul) (values (- f 1) (+ r 2)))))))
     (if (or (> prov-f 7) (< prov-f 0) (> prov-r 7) (< prov-r 0))
-      '()
+      #f
       (cls-to-coords (list prov-f prov-r)))))
 
 (define cache:all-coords-in-direction
@@ -599,9 +599,9 @@
                 (let (
                     (next-coords
                       (calc-next-coords-in-direction coords direction)))
-                  (if (null? next-coords)
-                    (reverse result)
-                    (loop next-coords (cons next-coords result))))))
+                  (if next-coords
+                    (loop next-coords (cons next-coords result))
+                    (reverse result)))))
             all-directions)))
       all-coords)))
 
