@@ -126,9 +126,7 @@
     (mutable static-val)
     (mutable eval-at-ply)
     (mutable check)
-    (mutable can-king-be-captured)
-    (mutable coords-incl-all-w)
-    (mutable coords-incl-all-b))
+    (mutable can-king-be-captured))
   (protocol
     (lambda (p)
       (lambda (placement active-color castling
@@ -138,32 +136,7 @@
                 (p placement active-color castling
                     en-passant halfmoves
                     fullmoves parent-position parent-move
-                    '() '() '() '() '()
-                    'unset 'unset)))
-          (position-coords-incl-all-w-set! obj
-            (if parent-position
-              (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
-                (if parent-move
-                  (if (symbol=? (piece-color (car parent-move)) 'w)
-                    (cons (caddr parent-move) orig-incl-all-w)
-                    orig-incl-all-w)
-                  orig-incl-all-w))
-              (filter
-                (lambda (coords)
-                  (symbol=? (piece-color (piece-at-coords obj coords)) 'w))
-                all-coords)))
-          (position-coords-incl-all-b-set! obj
-            (if parent-position
-              (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
-                (if parent-move
-                  (if (symbol=? (piece-color (car parent-move)) 'b)
-                    (cons (caddr parent-move) orig-incl-all-b)
-                    orig-incl-all-b)
-                  orig-incl-all-b))
-              (filter
-                (lambda (coords)
-                  (symbol=? (piece-color (piece-at-coords obj coords)) 'b))
-                all-coords)))
+                    '() '() '() '() '())))
           obj)
         ))))
 
@@ -205,17 +178,10 @@
   (apply append
     (map
       (lambda (color-wanted)
-        (define cs
-          (if (symbol=? color-wanted 'w)
-            (position-coords-incl-all-w position)
-            (position-coords-incl-all-b position)))
+        (define cs all-coords)
         (let loop ((result '()) (trimmed '()) (cs cs))
           (if (null? cs)
-            (begin
-              (if (symbol=? color-wanted 'w)
-                (position-coords-incl-all-w-set! position trimmed)
-                (position-coords-incl-all-b-set! position trimmed))
-              result)
+            result
             (let* (
                 (coords (car cs))
                 (piece-found (piece-at-coords position coords))
