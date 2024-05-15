@@ -32,40 +32,6 @@
 (define q (+ E Q-base))
 (define k (+ E K-base))
 
-(define position-index-placement 0)
-(define position-index-active-color 1)
-(define position-index-castling 2)
-(define position-index-en-passant 3)
-(define position-index-halfmoves 4)
-(define position-index-fullmoves 5)
-(define position-index-parent-position 6)
-(define position-index-parent-move 7)
-
-; Cache positions
-(define position-index-moves 8)
-(define position-index-static-val 9)
-(define position-index-eval-at-ply 10)
-(define position-index-check 11)
-(define position-index-can-king-be-captured 12)
-
-(define position-index-coords-incl-all-w 13)
-(define position-index-coords-incl-all-b 14)
-
-(define (position-placement p) (vector-ref p position-index-placement))
-(define (position-active-color p) (vector-ref p position-index-active-color))
-(define (position-castling p) (vector-ref p position-index-castling))
-(define (position-en-passant p) (vector-ref p position-index-en-passant))
-(define (position-halfmoves p) (vector-ref p position-index-halfmoves))
-(define (position-fullmoves p) (vector-ref p position-index-fullmoves))
-(define (position-parent-position p)
-  (vector-ref p position-index-parent-position))
-(define (position-parent-move p)
-  (vector-ref p position-index-parent-move))
-(define (position-coords-incl-all-w p)
-  (vector-ref p position-index-coords-incl-all-w))
-(define (position-coords-incl-all-b p)
-  (vector-ref p position-index-coords-incl-all-b))
-
 (define white-pieces (list P R N B Q K))
 (define black-pieces (list p r n b q k))
 (define all-pieces (append white-pieces black-pieces))
@@ -146,6 +112,61 @@
     ((= piece k) #\k)
     ((= piece p) #\p)))
 
+(define-record-type position
+  (fields
+    placement
+    active-color
+    castling
+    en-passant
+    halfmoves
+    fullmoves
+    parent-position
+    parent-move
+    (mutable moves)
+    (mutable static-val)
+    (mutable eval-at-ply)
+    (mutable check)
+    (mutable can-king-be-captured)
+    (mutable coords-incl-all-w)
+    (mutable coords-incl-all-b))
+  (protocol
+    (lambda (p)
+      (lambda (placement active-color castling
+                en-passant halfmoves
+                fullmoves parent-position parent-move)
+        (let ((obj
+                (p placement active-color castling
+                    en-passant halfmoves
+                    fullmoves parent-position parent-move
+                    '() '() '() '() '()
+                    'unset 'unset)))
+          (position-coords-incl-all-w-set! obj
+            (if parent-position
+              (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
+                (if parent-move
+                  (if (symbol=? (piece-color (car parent-move)) 'w)
+                    (cons (caddr parent-move) orig-incl-all-w)
+                    orig-incl-all-w)
+                  orig-incl-all-w))
+              (filter
+                (lambda (coords)
+                  (symbol=? (piece-color (piece-at-coords obj coords)) 'w))
+                all-coords)))
+          (position-coords-incl-all-b-set! obj
+            (if parent-position
+              (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
+                (if parent-move
+                  (if (symbol=? (piece-color (car parent-move)) 'b)
+                    (cons (caddr parent-move) orig-incl-all-b)
+                    orig-incl-all-b)
+                  orig-incl-all-b))
+              (filter
+                (lambda (coords)
+                  (symbol=? (piece-color (piece-at-coords obj coords)) 'b))
+                all-coords)))
+          obj)
+        ))))
+
 ; cls means: "coords list" and it's a list of file and rank.
 ; coords means: a number encoding a cls
 (define (coords-to-cls coords)
@@ -157,7 +178,7 @@
   (let ((f (car cls)) (r (cadr cls)))
     (+ (* 8 r) f)))
 
-(define (memoized-proc cache-index-in-position proc)
+(define (memoized-proc getter setter proc)
 ; Memoization that stores its data inside the first argument. This allows to
 ; have a separate cache for each position which means that we do not need to
 ; cache the first argument which might be expensive because of its complexity.
@@ -166,15 +187,12 @@
     (if (not caching?)
       (apply proc args)
       (let ((position (car args)) (rest (cdr args)))
-        (let ((c (vector-ref position cache-index-in-position)))
+        (let ((c (getter position)))
           (let ((cached-result-pair (assoc rest c)))
             (if cached-result-pair
               (cdr cached-result-pair)
               (let ((result (apply proc args)))
-                (vector-set!
-                  position
-                  cache-index-in-position
-                  (cons (cons rest result) c))
+                (setter position (cons (cons rest result) c))
                 result))
             ))))))
 
@@ -195,8 +213,8 @@
           (if (null? cs)
             (begin
               (if (symbol=? color-wanted 'w)
-                (vector-set! position position-index-coords-incl-all-w trimmed)
-                (vector-set! position position-index-coords-incl-all-b trimmed))
+                (position-coords-incl-all-w-set! position trimmed)
+                (position-coords-incl-all-b-set! position trimmed))
               result)
             (let* (
                 (coords (car cs))
@@ -414,51 +432,6 @@
 (define (decode-fullmoves fullmoves-string)
   (string->number fullmoves-string))
 
-(define (make-position placement active-color castling
-                        en-passant halfmoves
-                        fullmoves parent-position parent-move)
-  (define pos
-    (vector
-      placement
-      active-color
-      castling
-      en-passant
-      halfmoves
-      fullmoves
-      parent-position
-      parent-move
-      '() '() '() '() '()
-      'unset
-      'unset
-      ))
-  (vector-set! pos position-index-coords-incl-all-w
-    (if parent-position
-      (let ((orig-incl-all-w (position-coords-incl-all-w parent-position)))
-        (if parent-move
-          (if (symbol=? (piece-color (car parent-move)) 'w)
-            (cons (caddr parent-move) orig-incl-all-w)
-            orig-incl-all-w)
-          orig-incl-all-w))
-      (filter
-        (lambda (coords)
-          (symbol=? (piece-color (piece-at-coords pos coords)) 'w))
-        all-coords)))
-  (vector-set! pos position-index-coords-incl-all-b
-    (if parent-position
-      (let ((orig-incl-all-b (position-coords-incl-all-b parent-position)))
-        (if parent-move
-          (if (symbol=? (piece-color (car parent-move)) 'b)
-            (cons (caddr parent-move) orig-incl-all-b)
-            orig-incl-all-b)
-          orig-incl-all-b))
-      (filter
-        (lambda (coords)
-          (symbol=? (piece-color (piece-at-coords pos coords)) 'b))
-        all-coords)))
-  (when track-positions-examined?
-    (hashtable-set! positions-examined (encode-fen pos) 1))
-  pos)
-
 (define (position-copy-w-toggled-active-color position)
 ; think cases where toggling the active color results in an invalid position,
 ; for example when a check exists.
@@ -619,7 +592,7 @@
   (not (= (piece-at-coords position coords) E)))
 
 (define is-position-check?
-  (memoized-proc position-index-check
+  (memoized-proc position-check position-check-set!
     (lambda (position-in)
       (define position (position-copy-w-toggled-active-color position-in))
       (define king-to-capture
@@ -660,7 +633,8 @@
       piece color coords position king-directions 1 #t #t))
 
 (define can-king-be-captured?
-  (memoized-proc position-index-can-king-be-captured
+  (memoized-proc
+    position-can-king-be-captured position-can-king-be-captured-set!
     (lambda (position)
       (define active-color (position-active-color position))
       (define king (if (symbol=? active-color 'w) k K))
@@ -722,7 +696,7 @@
     moves))
 
 (define legal-moves
-  (memoized-proc position-index-moves
+  (memoized-proc position-moves position-moves-set!
     (lambda (position allow-king-in-check)
       (let (
           (moves-w-king-possibly-in-check
@@ -793,7 +767,7 @@
     ((= piece k) -999999)))
 
 (define evaluate-position-static
-  (memoized-proc position-index-static-val
+  (memoized-proc position-static-val position-static-val-set!
     (lambda (position)
       (define active-color (position-active-color position))
       (cond
@@ -1002,7 +976,7 @@
             admissible-moves))))))
 
 (define evaluate-position-at-ply
-  (memoized-proc position-index-eval-at-ply
+  (memoized-proc position-eval-at-ply position-eval-at-ply-set!
     (lambda (position ply admissible-moves-pred quiescence-search?)
       (sort-eval-obj position
         (if (= ply 0)
