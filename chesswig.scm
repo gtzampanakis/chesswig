@@ -691,30 +691,26 @@
                   position piece coords-from)))
           position)))))
 
-(define position-after-move
-  (case-lambda
-    ((position piece coords-from coords-to)
-      (position-after-move position (list piece coords-from coords-to)))
-    ((position move)
-      (list-unpack move (piece coords-from coords-to)
-        (define capture? (piece-at-coords? position coords-to))
-        (define pawn-move? (= (modulo piece E) 1))
-        (define new-placement (bytevector-copy (position-placement position)))
-        (bytevector-u8-set! new-placement coords-from E)
-        (bytevector-u8-set! new-placement coords-to piece)
-        (make-position
-          new-placement
-          (toggled-color (position-active-color position))
-          (position-castling position)
-          (position-en-passant position)
-          (if (or capture? pawn-move?)
-            0
-            (1+ (position-halfmoves position)))
-          (+
-            (position-fullmoves position)
-            (if (symbol=? (position-active-color position) 'b) 1 0))
-          position
-          move)))))
+(define (position-after-move position move)
+  (list-unpack move (piece coords-from coords-to)
+    (define capture? (piece-at-coords? position coords-to))
+    (define pawn-move? (= (modulo piece E) 1))
+    (define new-placement (bytevector-copy (position-placement position)))
+    (bytevector-u8-set! new-placement coords-from E)
+    (bytevector-u8-set! new-placement coords-to piece)
+    (make-position
+      new-placement
+      (toggled-color (position-active-color position))
+      (position-castling position)
+      (position-en-passant position)
+      (if (or capture? pawn-move?)
+        0
+        (1+ (position-halfmoves position)))
+      (+
+        (position-fullmoves position)
+        (if (symbol=? (position-active-color position) 'b) 1 0))
+      position
+      move)))
 
 (define (piece-base-value piece)
   (cond
