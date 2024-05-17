@@ -324,21 +324,23 @@
                            position piece coords)))))))
           position)
         "")))
-  (define next-position (position-after-move position move))
-  (define check-or-checkmate-str
-    (cond
-      ((is-position-checkmate? next-position) "#")
-      ((is-position-check? next-position) "+")
-      (else "")))
-  (define result
-    (string-append
-      piece-moving-str
-      file-str
-      rank-str
-      capture-str
-      sq-to-str
-      check-or-checkmate-str))
-  result)
+  (call-with-position-after-move
+    (lambda (next-position)
+      (define check-or-checkmate-str
+        (cond
+          ((is-position-checkmate? next-position) "#")
+          ((is-position-check? next-position) "+")
+          (else "")))
+      (define result
+        (string-append
+          piece-moving-str
+          file-str
+          rank-str
+          capture-str
+          sq-to-str
+          check-or-checkmate-str))
+      result)
+    position move))
 
 (define (white-piece? piece) (< piece E))
 
@@ -658,7 +660,10 @@
 (define (filter-out-moves-to-that-bring-king-in-check position moves)
   (filter
     (lambda (move)
-      (not (can-king-be-captured? (position-after-move position move))))
+      (call-with-position-after-move
+        (lambda (next-pos)
+          (not (can-king-be-captured? next-pos)))
+        position move))
     moves))
 
 (define legal-moves
@@ -691,26 +696,27 @@
                   position piece coords-from)))
           position)))))
 
-(define (position-after-move position move)
-  (list-unpack move (piece coords-from coords-to)
-    (define capture? (piece-at-coords? position coords-to))
-    (define pawn-move? (= (modulo piece E) 1))
-    (define new-placement (bytevector-copy (position-placement position)))
-    (bytevector-u8-set! new-placement coords-from E)
-    (bytevector-u8-set! new-placement coords-to piece)
-    (make-position
-      new-placement
-      (toggled-color (position-active-color position))
-      (position-castling position)
-      (position-en-passant position)
-      (if (or capture? pawn-move?)
-        0
-        (1+ (position-halfmoves position)))
-      (+
-        (position-fullmoves position)
-        (if (symbol=? (position-active-color position) 'b) 1 0))
-      position
-      move)))
+(define (call-with-position-after-move proc position move)
+  (proc
+    (list-unpack move (piece coords-from coords-to)
+      (define capture? (piece-at-coords? position coords-to))
+      (define pawn-move? (= (modulo piece E) 1))
+      (define new-placement (bytevector-copy (position-placement position)))
+      (bytevector-u8-set! new-placement coords-from E)
+      (bytevector-u8-set! new-placement coords-to piece)
+      (make-position
+        new-placement
+        (toggled-color (position-active-color position))
+        (position-castling position)
+        (position-en-passant position)
+        (if (or capture? pawn-move?)
+          0
+          (1+ (position-halfmoves position)))
+        (+
+          (position-fullmoves position)
+          (if (symbol=? (position-active-color position) 'b) 1 0))
+        position
+        move))))
 
 (define (piece-base-value piece)
   (cond
@@ -809,7 +815,9 @@
       (display (move-to-alg position (car move-seq)))
       (display " ")
       (loop
-        (position-after-move position (car move-seq))
+        (call-with-position-after-move
+          (lambda (next-pos) next-pos)
+          position (car move-seq))
         (if (symbol=? active-color 'b)
           (1+ move-number)
           move-number)
@@ -869,7 +877,10 @@
 (define (admit-disruptive position move)
   (let (
       (gain
-        (- (evaluate-position-static (position-after-move position move))
+        (- (evaluate-position-static
+             (call-with-position-after-move
+                (lambda (next-pos) next-pos)
+                position move))
            (evaluate-position-static position))))
     (if (symbol=? (position-active-color position) 'w)
       (>= gain 1.0)
@@ -929,10 +940,12 @@
           (map
             (lambda (move)
               (let* (
-                  (new-pos (position-after-move position move))
                   (eval-obj
                     (evaluate-position-at-ply
-                      new-pos (- ply 0.5)
+                      (call-with-position-after-move
+                        (lambda (next-pos) next-pos)
+                        position move)
+                      (- ply 0.5)
                       admissible-moves-pred quiescence-search?)))
                 (combine-move-w-eval-obj move eval-obj)))
             admissible-moves))))))
