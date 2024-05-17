@@ -697,26 +697,32 @@
           position)))))
 
 (define (call-with-position-after-move proc position move)
-  (proc
-    (list-unpack move (piece coords-from coords-to)
-      (define capture? (piece-at-coords? position coords-to))
-      (define pawn-move? (= (modulo piece E) 1))
-      (define new-placement (bytevector-copy (position-placement position)))
-      (bytevector-u8-set! new-placement coords-from E)
-      (bytevector-u8-set! new-placement coords-to piece)
-      (make-position
-        new-placement
-        (toggled-color (position-active-color position))
-        (position-castling position)
-        (position-en-passant position)
-        (if (or capture? pawn-move?)
-          0
-          (1+ (position-halfmoves position)))
-        (+
-          (position-fullmoves position)
-          (if (symbol=? (position-active-color position) 'b) 1 0))
-        position
-        move))))
+  (list-unpack move (piece coords-from coords-to)
+    (define placement (position-placement position))
+    (define capture? (piece-at-coords? position coords-to))
+    (define pawn-move? (= (modulo piece E) 1))
+    (define coords-from-kept (bytevector-u8-ref placement coords-from))
+    (define coords-to-kept (bytevector-u8-ref placement coords-to))
+    (bytevector-u8-set! placement coords-from E)
+    (bytevector-u8-set! placement coords-to piece)
+    (let ((result
+      (proc
+        (make-position
+          placement
+          (toggled-color (position-active-color position))
+          (position-castling position)
+          (position-en-passant position)
+          (if (or capture? pawn-move?)
+            0
+            (1+ (position-halfmoves position)))
+          (+
+            (position-fullmoves position)
+            (if (symbol=? (position-active-color position) 'b) 1 0))
+          position
+          move))))
+      (bytevector-u8-set! placement coords-from coords-from-kept)
+      (bytevector-u8-set! placement coords-to coords-to-kept)
+      result)))
 
 (define (piece-base-value piece)
   (cond
@@ -877,10 +883,10 @@
 (define (admit-disruptive position move)
   (let (
       (gain
-        (- (evaluate-position-static
-             (call-with-position-after-move
-                (lambda (next-pos) next-pos)
-                position move))
+        (-
+           (call-with-position-after-move
+              evaluate-position-static
+              position move)
            (evaluate-position-static position))))
     (if (symbol=? (position-active-color position) 'w)
       (>= gain 1.0)
@@ -941,12 +947,13 @@
             (lambda (move)
               (let* (
                   (eval-obj
-                    (evaluate-position-at-ply
-                      (call-with-position-after-move
-                        (lambda (next-pos) next-pos)
-                        position move)
-                      (- ply 0.5)
-                      admissible-moves-pred quiescence-search?)))
+                    (call-with-position-after-move
+                      (lambda (next-pos)
+                        (evaluate-position-at-ply
+                          next-pos (- ply 0.5)
+                          admissible-moves-pred quiescence-search?))
+                      position move)
+                    ))
                 (combine-move-w-eval-obj move eval-obj)))
             admissible-moves))))))
 
