@@ -626,20 +626,25 @@
       piece color coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
 
+(define (legal-square-for-knight-along-direction
+                    dir position piece color coords)
+  (let ((sqs-in-dir (all-coords-in-direction coords dir)))
+    (if
+      (or
+        (null? sqs-in-dir)
+        (friendly-piece-at-coords?
+          position (car sqs-in-dir) color))
+      #f
+      (car sqs-in-dir))))
+
 (define (legal-squares-for-knight position piece color coords)
-  (let loop ((sqs '()) (knight-directions knight-directions))
-    (if (null? knight-directions) sqs
-      (let ((dir (car knight-directions)))
-        (loop
-          (let ((sqs-in-dir (all-coords-in-direction coords dir)))
-            (if
-              (or
-                (null? sqs-in-dir)
-                (friendly-piece-at-coords?
-                  position (car sqs-in-dir) color))
-              sqs
-              (cons (car sqs-in-dir) sqs)))
-          (cdr knight-directions))))))
+  (fold-left
+    (lambda (acc dir)
+      (let ((sq (legal-square-for-knight-along-direction
+                            dir position piece color coords)))
+        (if sq (cons sq acc) acc)))
+    '()
+    knight-directions))
 
 (define (legal-squares-from-coords position piece coords)
   (if (= piece E) '()
