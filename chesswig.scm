@@ -698,13 +698,12 @@
 (define (legal-moves-w-king-possibly-in-check position)
   (let ((obj (legal-squares-w-king-possibly-in-check position)))
     (define moves '())
-    (for-each-in (piece coords-from obj) obj
-      (for-each-in (direction sqs) obj
+    (for-each-list-unpack (piece coords-from obj) obj
+      (for-each-list-unpack (direction sqs) obj
         (set! moves
           (append
             (map
-              (lambda (coords-to)
-                (list piece coords-from coords-to))
+              (lambda (coords-to) (list piece coords-from coords-to))
               sqs)
             moves))))
     moves))
