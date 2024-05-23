@@ -696,10 +696,10 @@
         position))))
 
 (define (legal-moves-w-king-possibly-in-check position)
-  (let ((obj1 (legal-squares-w-king-possibly-in-check position)))
+  (let ((obj (legal-squares-w-king-possibly-in-check position)))
     (define moves '())
-    (for-each-in (piece coords-from obj2) obj1
-      (for-each-in (direction sqs) obj2
+    (for-each-in (piece coords-from obj) obj
+      (for-each-in (direction sqs) obj
         (set! moves
           (append
             (map
