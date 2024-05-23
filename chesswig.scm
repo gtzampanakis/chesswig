@@ -696,10 +696,10 @@
         position))))
 
 (define (legal-moves-w-king-possibly-in-check position)
-  (let ((nested (legal-squares-w-king-possibly-in-check position)))
+  (let ((obj1 (legal-squares-w-king-possibly-in-check position)))
     (define moves '())
-    (for-each (lambda (_) (list-unpack _ (piece coords-from obj2)
-      (for-each (lambda (_) (list-unpack _ (direction sqs)
+    (for-each-in (piece coords-from obj2) obj1
+      (for-each-in (direction sqs) obj2
         (set! moves
           (append
             (map
@@ -707,8 +707,6 @@
                 (list piece coords-from coords-to))
               sqs)
             moves))))
-        obj2)))
-      nested)
     moves))
 
 (define (position-after-move position move)
