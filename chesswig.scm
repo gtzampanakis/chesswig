@@ -642,7 +642,7 @@
     (lambda (acc dir)
       (let ((sq (legal-square-for-knight-along-direction
                             dir position piece color coords)))
-        (if sq (cons sq acc) acc)))
+        (if sq (cons (list dir (list sq)) acc) acc)))
     '()
     knight-directions))
 
@@ -678,23 +678,38 @@
           (filter-out-moves-to-that-bring-king-in-check
                       position moves-w-king-possibly-in-check)))));)
 
-(define legal-moves-w-king-possibly-in-check
+(define legal-squares-w-king-possibly-in-check
   (lambda (position)
     (let* (
         (active-color (position-active-color position))
         (white-to-play? (symbol=? active-color 'w))
         (black-to-play? (symbol=? active-color 'b)))
-      (apply append
-        (map-over-placement
-          white-to-play?
-          black-to-play?
-          (lambda (piece coords-from)
+      (map-over-placement
+        white-to-play?
+        black-to-play?
+        (lambda (piece coords-from)
+          (list
+            piece
+            coords-from
+            (legal-squares-from-coords
+                position piece coords-from)))
+        position))))
+
+(define (legal-moves-w-king-possibly-in-check position)
+  (let ((nested (legal-squares-w-king-possibly-in-check position)))
+    (define moves '())
+    (for-each (lambda (_) (list-unpack _ (piece coords-from obj2)
+      (for-each (lambda (_) (list-unpack _ (direction sqs)
+        (set! moves
+          (append
             (map
               (lambda (coords-to)
                 (list piece coords-from coords-to))
-              (legal-squares-from-coords
-                  position piece coords-from)))
-          position)))))
+              sqs)
+            moves))))
+        obj2)))
+      nested)
+    moves))
 
 (define (position-after-move position move)
   (list-unpack move (piece coords-from coords-to)
@@ -863,13 +878,13 @@
 (define (legal-squares-along-directions
           piece color coords position directions
           max-distance allowed-to-capture? allowed-to-move-to-empty?)
-  (apply append
-    (map
-      (lambda (direction)
+  (map
+    (lambda (direction)
+      (list direction
         (legal-squares-along-direction
           piece color coords position direction
-          max-distance allowed-to-capture? allowed-to-move-to-empty?))
-      directions)))
+          max-distance allowed-to-capture? allowed-to-move-to-empty?)))
+    directions))
 
 (define (admit-disruptive position move)
   (let (
