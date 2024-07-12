@@ -32,10 +32,6 @@
 (define q (+ E Q-base))
 (define k (+ E K-base))
 
-(define white-pieces (list P R N B Q K))
-(define black-pieces (list p r n b q k))
-(define all-pieces (append white-pieces black-pieces))
-
 (define dir-u 0)
 (define dir-r 1)
 (define dir-d 2)

@@ -2,5 +2,5 @@
 
 time chezscheme \
   --libdirs .:lib \
-  --optimize-level 0 \
+  --optimize-level 3 \
   --script main.scm
