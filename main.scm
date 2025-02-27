@@ -11,11 +11,11 @@
 
 (define (main)
   (define position
-    (decode-fen fen-mate-in-2))
+    (decode-fen fen-mate-in-2-simplified))
 
   (display-eval-obj
     position
-    (evaluate-position-at-ply position 3/2 'admit-all #t))
+    (evaluate-position-at-ply position 1/2))
 
   ;(when track-positions-examined?
   ;  (d "Positions examined:" (hashtable-size positions-examined)))

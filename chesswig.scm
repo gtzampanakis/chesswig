@@ -911,56 +911,26 @@
       '() ; move-seq
       )))
 
-(define (evaluate-position-at-nonzero-ply
-          position ply admissible-moves-pred quiescence-search?)
+(define (evaluate-position-at-nonzero-ply position ply)
   (let (
-      (all-moves (legal-moves position #f))
-      (pred
-        (cond
-          ((symbol=? admissible-moves-pred 'admit-all)
-            'admit-all)
-          ((symbol=? admissible-moves-pred 'admit-disruptive)
-            (lambda (move) (admit-disruptive position move))))))
-    (let-values (
-        ((admissible-moves inadmissible-moves)
-          (if (eq? pred 'admit-all)
-            (values all-moves '())
-            (partition pred all-moves))))
-      (if (null? admissible-moves)
-        (eval-obj-of-static-eval position)
-        (append
-          (if (not (null? inadmissible-moves))
-          ; Inadmissible moves exist but we will not explore them (after all,
-          ; that's what being inadmissible means). Therefore include the static
-          ; evaluation of the position which will represent all the
-          ; inadmissible moves. If we did not include it then evaluation would
-          ; explore lines where players would be forced to play admissible
-          ; moves no matter how bad they are, ignoring the fact that
-          ; inadmissible moves might well be better.
-            (eval-obj-of-static-eval position)
-            '())
-          (map
-            (lambda (move)
-              (let* (
-                  (new-pos (position-after-move position move))
-                  (eval-obj
-                    (evaluate-position-at-ply
-                      new-pos (- ply 0.5)
-                      admissible-moves-pred quiescence-search?)))
-                (combine-move-w-eval-obj move eval-obj)))
-            admissible-moves))))))
+      (all-moves (legal-moves position #f)))
+    (if (null? all-moves)
+      (eval-obj-of-static-eval position)
+      (map
+        (lambda (move)
+          (let* (
+              (new-pos (position-after-move position move))
+              (eval-obj
+                (evaluate-position-at-ply new-pos (- ply 0.5))))
+            (combine-move-w-eval-obj move eval-obj)))
+        all-moves))))
 
 (define evaluate-position-at-ply
-  ;(memoized-proc position-eval-at-ply position-eval-at-ply-set!
-    (lambda (position ply admissible-moves-pred quiescence-search?)
-      (sort-eval-obj position
-        (if (= ply 0)
-          (if (and (eq? admissible-moves-pred 'admit-all) quiescence-search?)
-            (evaluate-position-at-ply
-              position 4/2 'admit-disruptive quiescence-search?)
-            (eval-obj-of-static-eval position))
-          (evaluate-position-at-nonzero-ply
-            position ply admissible-moves-pred quiescence-search?)))));)
+  (lambda (position ply)
+    (sort-eval-obj position
+      (if (= ply 0)
+        (eval-obj-of-static-eval position)
+        (evaluate-position-at-nonzero-ply position ply)))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
