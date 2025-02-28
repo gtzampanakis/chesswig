@@ -4,6 +4,7 @@
 (export
   encode-fen
   decode-fen
+  display-move-seq
   display-eval-obj
   evaluate-position-at-ply
 )
@@ -840,8 +841,7 @@
             (display "(no moves)")
             (display-move-seq position move-seq))
           (newline)
-          (loop (cdr eval-obj))))
-      )))
+          (loop (cdr eval-obj)))))))
 
 (define (legal-squares-along-direction
           piece color coords-from position direction

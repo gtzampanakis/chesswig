@@ -9,17 +9,69 @@
   
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
+(define (port-first-line port)
+  (let loop ((c (read-char port)) (line '()))
+    (if (or (eof-object? c) (char=? #\newline c))
+      (list (list->string (reverse line)) (if (eof-object? c) 'done port))
+      (loop (read-char port) (cons c line)))))
+
+(define (port-all-lines port)
+  (let loop ((line+port (port-first-line port)) (lines '()))
+    (let ((line (car line+port)) (port (cadr line+port)))
+      (if (equal? port 'done)
+        (reverse lines)
+        (loop (port-first-line port) (cons line lines))))))
+
+(define (is-line-fen? line)
+  (let ((line-list (string->list line)))
+    (=
+      7
+      (let loop ((n 0) (line-list line-list))
+        (if (null? line-list)
+          n
+          (loop
+            (+ n
+              (if (char=? #\/ (car line-list)) 1 0))
+            (cdr line-list)))))))
+
+(define (is-line-move-list? line)
+  (let ((line-list (string->list line)))
+    (if (null? line-list)
+      #f
+      (if (char=? (car line-list) #\1)
+        #t
+        #f))))
+
 (define (main)
-  (define position
-    (decode-fen fen-mate-in-2-simplified))
+  ;(define position
+  ;  (decode-fen fen-mate-in-2-simplified))
 
-  (display-eval-obj
-    position
-    (evaluate-position-at-ply position 1/2))
+  ;(display-eval-obj
+  ;  position
+  ;  (evaluate-position-at-ply position 1/2))
 
-  ;(when track-positions-examined?
-  ;  (d "Positions examined:" (hashtable-size positions-examined)))
+  ;;(when track-positions-examined?
+  ;;  (d "Positions examined:" (hashtable-size positions-examined)))
 
-  )
+  (define lines
+    (call-with-input-file "mates_in_2.txt"
+      (lambda (port)
+        (port-all-lines port))))
+
+  (for-each
+    (lambda (line)
+      (if (is-line-fen? line)
+        (let* (
+            (pos (decode-fen line))
+            (eval-obj (evaluate-position-at-ply pos 3/2)))
+          (display line)(newline)
+          (display-move-seq pos (cadar eval-obj)))
+        (unless (is-line-move-list? line)
+          (display line)(newline))))
+    (take lines 100))
+
+  (display "Done")(newline)
+
+)
 
 (main)
