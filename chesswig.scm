@@ -7,6 +7,7 @@
   display-move-seq
   display-eval-obj
   evaluate-position-at-ply
+  legal-moves
 )
 (import (chezscheme) (util) (unpack))
 
@@ -265,6 +266,18 @@
   (define sq-from (cadr move))
   (define sq-to (caddr move))
   (define sq-to-str (square-to-alg sq-to))
+  (define promotion-str
+    (let ((promotion-piece (list-ref move 3)))
+      (cond
+        ((null? promotion-piece) "")
+        ((= promotion-piece R) "=R")
+        ((= promotion-piece r) "=R")
+        ((= promotion-piece N) "=N")
+        ((= promotion-piece n) "=N")
+        ((= promotion-piece B) "=B")
+        ((= promotion-piece b) "=B")
+        ((= promotion-piece Q) "=Q")
+        ((= promotion-piece q) "=Q"))))
   (define capture? (is-move-capture? position move))
   (define capture-str (if capture? "x" ""))
   (define piece-moving-str
@@ -334,6 +347,7 @@
       rank-str
       capture-str
       sq-to-str
+      promotion-str
       check-or-checkmate-str))
   result)
 
@@ -697,21 +711,36 @@
     (define moves '())
     (for-each-list-unpack (piece coords-from obj) obj
       (for-each-list-unpack (direction sqs) obj
-        (set! moves
-          (append
-            (map
-              (lambda (coords-to) (list piece coords-from coords-to))
-              sqs)
-            moves))))
+        (for-each
+          (lambda (coords-to)
+            (define promotion-pieces
+              (if
+                (or
+                  (and (= piece P) (= (cadr (coords-to-cls coords-to)) 7))
+                  (and (= piece p) (= (cadr (coords-to-cls coords-to)) 0)))
+                (if (symbol=? (position-active-color position) 'w)
+                  (list R N B Q)
+                  (list r n b q))
+                '()))
+            (if (null? promotion-pieces)
+              (set! moves (cons (list piece coords-from coords-to '()) moves))
+              (for-each
+                (lambda (promotion-piece)
+                  (set! moves
+                    (cons
+                      (list piece coords-from coords-to promotion-piece) moves)))
+                promotion-pieces)))
+          sqs)))
     moves))
 
 (define (position-after-move position move)
-  (list-unpack move (piece coords-from coords-to)
+  (list-unpack move (piece coords-from coords-to promotion-piece)
     (define capture? (piece-at-coords? position coords-to))
     (define pawn-move? (= (modulo piece E) 1))
     (define new-placement (bytevector-copy (position-placement position)))
     (bytevector-u8-set! new-placement coords-from E)
-    (bytevector-u8-set! new-placement coords-to piece)
+    (bytevector-u8-set! new-placement coords-to
+      (if (null? promotion-piece) piece promotion-piece))
     (make-position
       new-placement
       (toggled-color (position-active-color position))
