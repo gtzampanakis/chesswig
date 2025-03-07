@@ -50,9 +50,6 @@
   ;  position
   ;  (evaluate-position-at-ply position 1/2))
 
-  ;;(when track-positions-examined?
-  ;;  (d "Positions examined:" (hashtable-size positions-examined)))
-
   (define lines
     (call-with-input-file "mates_in_2.txt"
       (lambda (port)
@@ -65,10 +62,10 @@
             (pos (decode-fen line))
             (eval-obj (evaluate-position-at-ply pos 3/2)))
           (display line)(newline)
-          (display-move-seq pos (cadar eval-obj)))
+          (display-move-seq pos (cadar eval-obj))(newline))
         (unless (is-line-move-list? line)
           (display line)(newline))))
-    (take lines 100))
+    (take lines 20))
 
   (display "Done")(newline)
 

@@ -555,7 +555,7 @@
   (not (= (piece-at-coords position coords) E)))
 
 (define is-position-check?
-  ;(memoized-proc position-check position-check-set!
+  (memoized-proc position-check position-check-set!
     (lambda (position-in)
       (define position (position-copy-w-toggled-active-color position-in))
       (define king-to-capture
@@ -567,7 +567,7 @@
           (let ((move (car moves)))
             (if (= (piece-at-coords position (caddr move)) king-to-capture)
               #t
-              (loop (cdr moves))))))));)
+              (loop (cdr moves)))))))))
 
 (define (is-position-checkmate? position)
   (and
@@ -596,8 +596,8 @@
       piece color coords position king-directions 1 #t #t))
 
 (define can-king-be-captured?
-  ;(memoized-proc
-  ;  position-can-king-be-captured position-can-king-be-captured-set!
+  (memoized-proc
+    position-can-king-be-captured position-can-king-be-captured-set!
     (lambda (position)
       (define active-color (position-active-color position))
       (define king (if (symbol=? active-color 'w) k K))
@@ -607,7 +607,7 @@
           (let ((move (car moves)))
             (if (= (piece-at-coords position (caddr move)) king)
               #t
-              (loop (cdr moves))))))));)
+              (loop (cdr moves)))))))))
 
 (define (legal-squares-for-pawn position piece color coords)
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
@@ -664,7 +664,7 @@
     moves))
 
 (define legal-moves
-  ;(memoized-proc position-moves position-moves-set!
+  (memoized-proc position-moves position-moves-set!
     (lambda (position allow-king-in-check)
       (let (
           (moves-w-king-possibly-in-check
@@ -673,7 +673,7 @@
         (if allow-king-in-check
           moves-w-king-possibly-in-check
           (filter-out-moves-to-that-bring-king-in-check
-                      position moves-w-king-possibly-in-check)))));)
+                      position moves-w-king-possibly-in-check))))))
 
 (define legal-squares-w-king-possibly-in-check
   (lambda (position)
@@ -743,7 +743,7 @@
     ((= piece k) -999999)))
 
 (define evaluate-position-static
-  ;(memoized-proc position-static-val position-static-val-set!
+  (memoized-proc position-static-val position-static-val-set!
     (lambda (position)
       (define active-color (position-active-color position))
       (cond
@@ -761,7 +761,7 @@
               #t #t
               (lambda (piece coords)
                 (piece-base-value piece))
-              position))))))
+              position)))))))
 
 ; An evaluation object has the following structure:
 ; ((val move-seq) ...)
