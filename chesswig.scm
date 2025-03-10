@@ -8,6 +8,13 @@
   display-eval-obj
   evaluate-position-at-ply
   legal-moves
+  cls-to-coords
+  coords-to-cls
+  position-after-move
+  position-en-passant
+  is-position-check?
+  is-position-checkmate?
+  P p
 )
 (import (chezscheme) (util) (unpack))
 
@@ -258,8 +265,16 @@
     (file-to-alg (car (coords-to-cls sq)))
     (rank-to-alg (cadr (coords-to-cls sq)))))
 
+(define (is-move-en-passant-capture? position move)
+  (list-unpack move (piece coords-from coords-to promotion-piece)
+    (and
+      (or (= piece p) (= piece P))
+      (equal? coords-to (position-en-passant position)))))
+
 (define (is-move-capture? position move)
-  (piece-at-coords? position (caddr move)))
+  (or
+    (piece-at-coords? position (caddr move))
+    (is-move-en-passant-capture? position move)))
 
 (define (move-to-alg position move)
   (define piece-moving (car move))
@@ -735,17 +750,38 @@
 
 (define (position-after-move position move)
   (list-unpack move (piece coords-from coords-to promotion-piece)
-    (define capture? (piece-at-coords? position coords-to))
+    (define capture? (is-move-capture? position move))
     (define pawn-move? (= (modulo piece E) 1))
     (define new-placement (bytevector-copy (position-placement position)))
     (bytevector-u8-set! new-placement coords-from E)
+    (when (and capture? (is-move-en-passant-capture? position move))
+      (bytevector-u8-set!
+        new-placement
+        (let (
+            (back-direction
+              (if (symbol=? (position-active-color position) 'w) dir-d dir-u)))
+          (car (all-coords-in-direction coords-to back-direction)))
+        E))
     (bytevector-u8-set! new-placement coords-to
       (if (null? promotion-piece) piece promotion-piece))
     (make-position
       new-placement
       (toggled-color (position-active-color position))
       (position-castling position)
-      (position-en-passant position)
+      (if pawn-move?
+        (let (
+            (rank-from (cadr (coords-to-cls coords-from)))
+            (rank-to (cadr (coords-to-cls coords-to))))
+          (if (symbol=? (position-active-color position) 'w)
+            (if (and (= rank-from 1) (= rank-to 3))
+              (let ((file-from (car (coords-to-cls coords-from))))
+                (cls-to-coords (list file-from 2)))
+              '())
+            (if (and (= rank-from 6) (= rank-to 4))
+              (let ((file-from (car (coords-to-cls coords-from))))
+                (cls-to-coords (list file-from 5)))
+              '())))
+        '())
       (if (or capture? pawn-move?)
         0
         (1+ (position-halfmoves position)))
@@ -874,7 +910,7 @@
 
 (define (legal-squares-along-direction
           piece color coords-from position direction
-          max-distance allowed-to-capture? allowed-to-move-to-empty?)
+          max-distance allowed-to-capture? allowed-to-move-without-capturing)
   (let loop (
       (all-coords (all-coords-in-direction coords-from direction))
       (max-distance max-distance)
@@ -885,13 +921,27 @@
           (coords (car all-coords))
           (piece-found (piece-at-coords position coords)))
         (if (= piece-found E)
-          (if (not allowed-to-move-to-empty?) result
+          (if
+            (or
+              allowed-to-move-without-capturing
+              (let ((en-passant-coords (position-en-passant position)))
+                (and
+                  (not (null? en-passant-coords))
+                  (or (= piece P) (= piece p))
+                  (or
+                    (=
+                      (car (coords-to-cls coords-from))
+                      (+ (car (coords-to-cls en-passant-coords)) 1))
+                    (=
+                      (car (coords-to-cls coords-from))
+                      (- (car (coords-to-cls en-passant-coords)) 1)))
+                  (equal? coords en-passant-coords))))
             (loop
               (cdr all-coords)
               (1- max-distance)
-              (cons coords result)))
-          (if
-            (symbol=? (piece-color piece-found) color)
+              (cons coords result))
+            result)
+          (if (symbol=? (piece-color piece-found) color)
             result
             (if allowed-to-capture?
               (cons coords result)
@@ -899,13 +949,13 @@
 
 (define (legal-squares-along-directions
           piece color coords position directions
-          max-distance allowed-to-capture? allowed-to-move-to-empty?)
+          max-distance allowed-to-capture? allowed-to-move-without-capturing)
   (map
     (lambda (direction)
       (list direction
         (legal-squares-along-direction
           piece color coords position direction
-          max-distance allowed-to-capture? allowed-to-move-to-empty?)))
+          max-distance allowed-to-capture? allowed-to-move-without-capturing)))
     directions))
 
 (define (admit-disruptive position move)

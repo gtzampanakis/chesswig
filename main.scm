@@ -10,6 +10,8 @@
   
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
+(define fen-en-passant "5r2/7p/3R4/p3pk2/1p2N2p/1P2BP2/6PK/4r3 w - - 1 0")
+
 (define (port-first-line port)
   (let loop ((c (read-char port)) (line '()))
     (if (or (eof-object? c) (char=? #\newline c))
@@ -44,18 +46,30 @@
         #f))))
 
 (define (main)
-  ;(define position
-  ;  (decode-fen fen-mate-in-2-simplified))
+  (define position
+    (decode-fen fen-en-passant))
 
   ;(display-eval-obj
   ;  position
-  ;  (evaluate-position-at-ply position 1/2))
+  ;  (evaluate-position-at-ply position 3/2))
+
+  ;(define position-2
+  ;  (position-after-move position
+  ;    (list P (cls-to-coords (list 6 1)) (cls-to-coords (list 6 3)) '())))
+  ;
+  ;(display (position-en-passant position))(newline)
+  ;(display (coords-to-cls (position-en-passant position-2)))(newline)
+  ;;(display-eval-obj
+  ;;  position
+  ;;  (evaluate-position-at-ply position-2 1/2))
+  ;(display 'legal-moves-running-now)(newline)
+  ;(display (legal-moves position-2 #f))(newline)
+  ;(display 'legal-moves-done-running)(newline)
 
   (define lines
     (call-with-input-file "mates_in_2.txt"
       (lambda (port)
         (port-all-lines port))))
-
   (for-each
     (lambda (line)
       (if (is-line-fen? line)
@@ -66,7 +80,7 @@
           (display-move-seq pos (cadar eval-obj))(newline))
         (unless (is-line-move-list? line)
           (display line)(newline))))
-    (take lines 200))
+    lines)
 
   ;(define position (decode-fen fen-promotion))
 
