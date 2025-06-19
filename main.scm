@@ -47,7 +47,7 @@
 
 (define (main)
   (define position
-    (decode-fen fen-en-passant))
+    (decode-fen fen-mate-in-2))
 
   ;(display-eval-obj
   ;  position
@@ -66,26 +66,29 @@
   ;(display (legal-moves position-2 #f))(newline)
   ;(display 'legal-moves-done-running)(newline)
 
-  (define lines
-    (call-with-input-file "mates_in_2.txt"
-      (lambda (port)
-        (port-all-lines port))))
-  (for-each
-    (lambda (line)
-      (if (is-line-fen? line)
-        (let* (
-            (pos (decode-fen line))
-            (eval-obj (evaluate-position-at-ply pos 3/2)))
-          (display line)(newline)
-          (display-move-seq pos (cadar eval-obj))(newline))
-        (unless (is-line-move-list? line)
-          (display line)(newline))))
-    lines)
+  ;(define lines
+  ;  (call-with-input-file "mates_in_2.txt"
+  ;    (lambda (port)
+  ;      (port-all-lines port))))
+  ;(for-each
+  ;  (lambda (line)
+  ;    (if (is-line-fen? line)
+  ;      (let* (
+  ;          (pos (decode-fen line))
+  ;          (eval-obj (evaluate-position-at-ply pos 3/2)))
+  ;        (display line)(newline)
+  ;        (display-move-seq pos (cadar eval-obj))(newline))
+  ;      (unless (is-line-move-list? line)
+  ;        (display line)(newline))))
+  ;  lines)
 
   ;(define position (decode-fen fen-promotion))
 
-  ;(define eval-obj (evaluate-position-at-ply position 1/2))
-  ;(display-eval-obj position eval-obj)
+  (define eval-obj (evaluate-position-at-ply position 3/2))
+
+  (display "Started")(newline)
+
+  (display-eval-obj position eval-obj 16)
 
   (display "Done")(newline)
 

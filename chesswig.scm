@@ -895,8 +895,8 @@
         (cdr move-seq)
         #f))))
 
-(define (display-eval-obj position eval-obj)
-  (let loop ((eval-obj eval-obj))
+(define (display-eval-obj position eval-obj max-moves-to-display)
+  (let loop ((i 1) (eval-obj eval-obj))
     (unless (null? eval-obj)
       (let ((val+move-seq (car eval-obj)))
         (let ((val (car val+move-seq)) (move-seq (cadr val+move-seq)))
@@ -906,7 +906,8 @@
             (display "(no moves)")
             (display-move-seq position move-seq))
           (newline)
-          (loop (cdr eval-obj)))))))
+          (when (or (= max-moves-to-display 0) (< i max-moves-to-display))
+            (loop (1+ i) (cdr eval-obj))))))))
 
 (define (legal-squares-along-direction
           piece color coords-from position direction
