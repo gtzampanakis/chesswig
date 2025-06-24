@@ -7,6 +7,7 @@
 (define fen-mate-in-2-simplified
   "5k1n/4bpp1/8/1B1Q4/8/8/5PPP/4R1KN w - - 1 1")
 (define fen-promotion "7k/P7/8/8/8/8/7p/K7 w - - 0 1")
+(define fen-stupid-take "k7/8/8/8/7p/6p1/8/K4N2 w - - 0 1")
   
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 
@@ -47,7 +48,7 @@
 
 (define (main)
   (define position
-    (decode-fen fen-mate-in-2))
+    (decode-fen fen-stupid-take))
 
   ;(display-eval-obj
   ;  position
@@ -84,11 +85,11 @@
 
   ;(define position (decode-fen fen-promotion))
 
-  (define eval-obj (evaluate-position-at-ply position 3/2))
 
   (display "Started")(newline)
 
-  (display-eval-obj position eval-obj 16)
+  (let ((eval-obj (evaluate-position-at-ply position 1/2)))
+      (display-eval-obj position eval-obj 16))
 
   (display "Done")(newline)
 
