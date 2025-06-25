@@ -991,26 +991,25 @@
       '() ; move-seq
       )))
 
-(define (evaluate-position-at-nonzero-ply position ply)
-  (let (
-      (all-moves (legal-moves position #f)))
-    (if (null? all-moves)
-      (eval-obj-of-static-eval position)
-      (map
-        (lambda (move)
-          (let* (
-              (new-pos (position-after-move position move))
-              (eval-obj
-                (evaluate-position-at-ply new-pos (- ply 0.5))))
-            (combine-move-w-eval-obj move eval-obj)))
-        all-moves))))
-
 (define evaluate-position-at-ply
-  (lambda (position ply)
-    (sort-eval-obj position
-      (if (= ply 0)
-        (eval-obj-of-static-eval position)
-        (evaluate-position-at-nonzero-ply position ply)))))
+  (case-lambda
+    ((position ply) (evaluate-position-at-ply position ply #t #f))
+    ((position ply do-quiescence-search? moves-filter-pred)
+      (sort-eval-obj position
+        (if (= ply 0)
+          (eval-obj-of-static-eval position)
+          (let (
+                (all-moves (legal-moves position #f)))
+              (if (null? all-moves)
+                (eval-obj-of-static-eval position)
+                (map
+                  (lambda (move)
+                    (let* (
+                        (new-pos (position-after-move position move))
+                        (eval-obj
+                          (evaluate-position-at-ply new-pos (- ply 0.5))))
+                      (combine-move-w-eval-obj move eval-obj)))
+                  all-moves))))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
