@@ -991,6 +991,9 @@
       '() ; move-seq
       )))
 
+(define (is-move-non-quiescent? position move)
+  #f)
+
 (define evaluate-position-at-ply
   (case-lambda
     ((position ply) (evaluate-position-at-ply position ply #t #f))
