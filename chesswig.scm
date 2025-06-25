@@ -991,8 +991,15 @@
       '() ; move-seq
       )))
 
-(define (is-move-non-quiescent? position move)
-  #f)
+(define (is-move-non-quiescent? position move new-position)
+  (let
+    (
+      (pos-static-val (evaluate-position-static position))
+      (new-pos-static-val (evaluate-position-static new-position))
+      (active-color (position-active-color position)))
+    (if (symbol=? active-color 'w)
+      (>= (- new-pos-static-val pos-static-val) 1)
+      (<= (- new-pos-static-val pos-static-val) -1))))
 
 (define evaluate-position-at-ply
   (case-lambda
@@ -1010,14 +1017,16 @@
                 (let loop ((all-moves all-moves) (r '()))
                   (if (null? all-moves) r
                     (loop (cdr all-moves)
-                      (let ((move (car all-moves)))
+                      (let*
+                        (
+                          (move (car all-moves))
+                          (new-pos (position-after-move position move)))
                         (if
                           (or
                             (not moves-filter-pred)
-                            (moves-filter-pred position move))
+                            (moves-filter-pred position move new-pos))
                           (cons
                             (let* (
-                                (new-pos (position-after-move position move))
                                 (eval-obj
                                   (evaluate-position-at-ply
                                     new-pos
