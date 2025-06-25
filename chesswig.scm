@@ -1000,19 +1000,36 @@
     ((position ply do-quiescence-search? moves-filter-pred)
       (sort-eval-obj position
         (if (= ply 0)
-          (eval-obj-of-static-eval position)
-          (let (
-                (all-moves (legal-moves position #f)))
-              (if (null? all-moves)
+          (if do-quiescence-search?
+            (evaluate-position-at-ply
+              position 1/2 #f is-move-non-quiescent?)
+            (eval-obj-of-static-eval position))
+          (let ((all-moves (legal-moves position #f)))
+            (let
+              ((eval-obj
+                (let loop ((all-moves all-moves) (r '()))
+                  (if (null? all-moves) r
+                    (loop (cdr all-moves)
+                      (let ((move (car all-moves)))
+                        (if
+                          (or
+                            (not moves-filter-pred)
+                            (moves-filter-pred position move))
+                          (cons
+                            (let* (
+                                (new-pos (position-after-move position move))
+                                (eval-obj
+                                  (evaluate-position-at-ply
+                                    new-pos
+                                    (- ply 0.5)
+                                    do-quiescence-search?
+                                    moves-filter-pred)))
+                              (combine-move-w-eval-obj move eval-obj))
+                            r)
+                          r)))))))
+              (if (null? eval-obj)
                 (eval-obj-of-static-eval position)
-                (map
-                  (lambda (move)
-                    (let* (
-                        (new-pos (position-after-move position move))
-                        (eval-obj
-                          (evaluate-position-at-ply new-pos (- ply 0.5))))
-                      (combine-move-w-eval-obj move eval-obj)))
-                  all-moves))))))))
+                eval-obj))))))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
