@@ -47,8 +47,6 @@
         #f))))
 
 (define (main)
-  (define position
-    (decode-fen fen-stupid-take))
 
   ;(display-eval-obj
   ;  position
@@ -84,7 +82,8 @@
   ;  lines)
 
   ;(define position (decode-fen fen-promotion))
-
+  (define position
+    (decode-fen fen-stupid-take))
 
   (display "Started")(newline)
 

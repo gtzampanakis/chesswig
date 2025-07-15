@@ -1003,14 +1003,10 @@
 
 (define evaluate-position-at-ply
   (case-lambda
-    ((position ply) (evaluate-position-at-ply position ply #t #f))
-    ((position ply do-quiescence-search? moves-filter-pred)
+    ((position ply)
       (sort-eval-obj position
         (if (= ply 0)
-          (if do-quiescence-search?
-            (evaluate-position-at-ply
-              position 1/2 #f is-move-non-quiescent?)
-            (eval-obj-of-static-eval position))
+          (eval-obj-of-static-eval position)
           (let ((all-moves (legal-moves position #f)))
             (let
               ((eval-obj
@@ -1021,21 +1017,15 @@
                         (
                           (move (car all-moves))
                           (new-pos (position-after-move position move)))
-                        (if
-                          (or
-                            (not moves-filter-pred)
-                            (moves-filter-pred position move new-pos))
-                          (cons
-                            (let* (
-                                (eval-obj
-                                  (evaluate-position-at-ply
-                                    new-pos
-                                    (- ply 0.5)
-                                    do-quiescence-search?
-                                    moves-filter-pred)))
-                              (combine-move-w-eval-obj move eval-obj))
-                            r)
-                          r)))))))
+                        (cons
+                          (let* (
+                              (eval-obj
+                                (evaluate-position-at-ply
+                                  new-pos
+                                  (- ply 0.5))))
+                            (combine-move-w-eval-obj move eval-obj))
+                          r)
+                        ))))))
               (if (null? eval-obj)
                 (eval-obj-of-static-eval position)
                 eval-obj))))))))
