@@ -83,11 +83,11 @@
 
   ;(define position (decode-fen fen-promotion))
   (define position
-    (decode-fen fen-stupid-take))
+    (decode-fen "k7/7Q/5Q2/8/7p/6p1/8/K4N2 w - - 0 1"))
 
   (display "Started")(newline)
 
-  (let ((eval-obj (evaluate-position-at-ply position 1/2)))
+  (let ((eval-obj (evaluate-position-at-ply position 3/2)))
       (display-eval-obj position eval-obj 16))
 
   (display "Done")(newline)

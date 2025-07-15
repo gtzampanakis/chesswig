@@ -1004,31 +1004,43 @@
 (define evaluate-position-at-ply
   (case-lambda
     ((position ply)
-      (sort-eval-obj position
-        (if (= ply 0)
-          (eval-obj-of-static-eval position)
-          (let ((all-moves (legal-moves position #f)))
-            (let
-              ((eval-obj
-                (let loop ((all-moves all-moves) (r '()))
-                  (if (null? all-moves) r
-                    (loop (cdr all-moves)
-                      (let*
-                        (
-                          (move (car all-moves))
-                          (new-pos (position-after-move position move)))
-                        (cons
-                          (let* (
-                              (eval-obj
-                                (evaluate-position-at-ply
-                                  new-pos
-                                  (- ply 0.5))))
-                            (combine-move-w-eval-obj move eval-obj))
-                          r)
-                        ))))))
-              (if (null? eval-obj)
-                (eval-obj-of-static-eval position)
-                eval-obj))))))))
+      (evaluate-position-at-ply position ply #f))
+    ((position ply can-stay?)
+      (let* (
+        (unsorted-eval-obj
+          (if (= ply 0)
+            (eval-obj-of-static-eval position)
+            (let (
+                (all-moves (legal-moves position #f))
+                (pr-position-static-val (delay (evaluate-position-static position))))
+              (let
+                ((eval-obj
+                  (let loop ((all-moves all-moves) (r '()))
+                    (if (null? all-moves) r
+                      (loop (cdr all-moves)
+                        (let*
+                          (
+                            (move (car all-moves))
+                            (new-pos (position-after-move position move))
+                            (pr-new-position-static-val
+                              (delay (evaluate-position-static new-pos))))
+                          (cons
+                            (let* (
+                                (eval-obj
+                                  (evaluate-position-at-ply
+                                    new-pos
+                                    (- ply 0.5))))
+                              (combine-move-w-eval-obj move eval-obj))
+                            r)
+                          ))))))
+                (if (null? eval-obj)
+                  (eval-obj-of-static-eval position)
+                  eval-obj)))))
+          (unsorted-eval-obj
+            (if can-stay?
+              (append (eval-obj-of-static-eval position) unsorted-eval-obj)
+              unsorted-eval-obj)))
+        (sort-eval-obj position unsorted-eval-obj)))))
 
 (define (display-position position)
   (let* ((enc (encode-fen position)))
