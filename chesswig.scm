@@ -17,8 +17,11 @@
   is-position-check?
   is-position-checkmate?
   P p
+  R r
 )
 (import (chezscheme) (util) (unpack))
+
+; TODO: if moves are forced, evaluate them
 
 (define caching? #t)
 
@@ -1003,11 +1006,12 @@
       '() ; move-seq
       )))
 
-(define (is-move-non-quiescent? position move new-position)
+(define (is-move-non-quiescent? position move)
   (let
     (
       (pos-static-val (evaluate-position-static position))
-      (new-pos-static-val (evaluate-position-static new-position))
+      (new-pos-static-val
+        (evaluate-position-static (position-after-move position move)))
       (active-color (position-active-color position)))
     (if (symbol=? active-color 'w)
       (>= (- new-pos-static-val pos-static-val) 1)
@@ -1016,15 +1020,25 @@
 (define evaluate-position-at-ply
   (case-lambda
     ((position ply)
-      (evaluate-position-at-ply position ply #f))
-    ((position ply can-stay?)
+      (evaluate-position-at-ply position ply #t #f #f))
+    ((position ply do-quiescence-search?)
+      (evaluate-position-at-ply position ply do-quiescence-search? #f #f))
+    ((position ply do-quiescence-search? can-stay? moves-filter-pred)
       (let* (
         (unsorted-eval-obj
           (if (= ply 0)
-            (eval-obj-of-static-eval position)
-            (let (
+            (if do-quiescence-search?
+              (evaluate-position-at-ply
+                position 2/2 #f #t is-move-non-quiescent?)
+              (eval-obj-of-static-eval position))
+            (let* (
                 (all-moves (legal-moves position #f))
-                (pr-position-static-val (delay (evaluate-position-static position))))
+                (all-moves
+                  (if moves-filter-pred
+                    (filter
+                      (lambda (move) (moves-filter-pred position move))
+                      all-moves)
+                    all-moves)))
               (let
                 ((eval-obj
                   (let loop ((all-moves all-moves) (r '()))
@@ -1041,7 +1055,10 @@
                                 (eval-obj
                                   (evaluate-position-at-ply
                                     new-pos
-                                    (- ply 0.5))))
+                                    (- ply 0.5)
+                                    do-quiescence-search?
+                                    can-stay?
+                                    moves-filter-pred)))
                               (combine-move-w-eval-obj move eval-obj))
                             r)
                           ))))))
