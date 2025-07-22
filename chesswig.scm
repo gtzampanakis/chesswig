@@ -18,10 +18,16 @@
   is-position-checkmate?
   P p
   R r
+  track-positions-examined?
+  n-positions-examined
 )
 (import (chezscheme) (util) (unpack))
 
 ; TODO: if moves are forced, evaluate them
+
+(define track-positions-examined? #t)
+
+(define n-positions-examined (cons 0 -1))
 
 (define caching? #t)
 
@@ -86,11 +92,6 @@
 
 (define king-directions
   (list dir-u dir-r dir-d dir-l dir-ur dir-dr dir-dl dir-ul))
-
-(define positions-examined
-  (make-hashtable string-hash string=?))
-
-(define track-positions-examined? #f)
 
 (define (char->piece char)
   (case char
@@ -974,15 +975,6 @@
           max-distance allowed-to-capture? allowed-to-move-without-capturing)))
     directions))
 
-(define (admit-disruptive position move)
-  (let (
-      (gain
-        (- (evaluate-position-static (position-after-move position move))
-           (evaluate-position-static position))))
-    (if (symbol=? (position-active-color position) 'w)
-      (>= gain 1.0)
-      (<= gain -1.0))))
-
 (define (sort-eval-obj position eval-obj)
   (let ((asc (sort less-predicate-for-eval-objs eval-obj)))
     (if (eq? (position-active-color position) 'w)
@@ -1024,12 +1016,14 @@
     ((position ply do-quiescence-search?)
       (evaluate-position-at-ply position ply do-quiescence-search? #f #f))
     ((position ply do-quiescence-search? can-stay? moves-filter-pred)
+      (when track-positions-examined?
+        (set-car! n-positions-examined (1+ (car n-positions-examined))))
       (let* (
         (unsorted-eval-obj
           (if (= ply 0)
             (if do-quiescence-search?
               (evaluate-position-at-ply
-                position 2/2 #f #t is-move-non-quiescent?)
+                position 4/2 #f #t is-move-non-quiescent?)
               (eval-obj-of-static-eval position))
             (let* (
                 (all-moves (legal-moves position #f))

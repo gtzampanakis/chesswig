@@ -87,9 +87,14 @@
 
   (display "Started")(newline)
 
-  (let ((eval-obj (evaluate-position-at-ply position 1/2 #t)))
+  (let ((eval-obj (evaluate-position-at-ply position 1/2 #f)))
       (display-eval-obj position eval-obj 32))
   (newline)
+
+  (when track-positions-examined?
+    (display "Number of positions examined: ")
+    (display (car n-positions-examined))
+    (newline))
 
   (display "Done")(newline)
 
