@@ -1013,17 +1013,17 @@
   (case-lambda
     ((position ply)
       (evaluate-position-at-ply position ply #t #f #f))
-    ((position ply do-quiescence-search?)
-      (evaluate-position-at-ply position ply do-quiescence-search? #f #f))
-    ((position ply do-quiescence-search? can-stay? moves-filter-pred)
+    ((position ply quiesc-ply)
+      (evaluate-position-at-ply position ply quiesc-ply #f #f))
+    ((position ply quiesc-ply can-stay? moves-filter-pred)
       (when track-positions-examined?
         (set-car! n-positions-examined (1+ (car n-positions-examined))))
       (let* (
         (unsorted-eval-obj
           (if (= ply 0)
-            (if do-quiescence-search?
+            (if quiesc-ply
               (evaluate-position-at-ply
-                position 4/2 #f #t is-move-non-quiescent?)
+                position quiesc-ply #f #t is-move-non-quiescent?)
               (eval-obj-of-static-eval position))
             (let* (
                 (all-moves (legal-moves position #f))
@@ -1041,16 +1041,14 @@
                         (let*
                           (
                             (move (car all-moves))
-                            (new-pos (position-after-move position move))
-                            (pr-new-position-static-val
-                              (delay (evaluate-position-static new-pos))))
+                            (new-pos (position-after-move position move)))
                           (cons
                             (let* (
                                 (eval-obj
                                   (evaluate-position-at-ply
                                     new-pos
                                     (- ply 0.5)
-                                    do-quiescence-search?
+                                    quiesc-ply
                                     can-stay?
                                     moves-filter-pred)))
                               (combine-move-w-eval-obj move eval-obj))

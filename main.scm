@@ -87,7 +87,7 @@
 
   (display "Started")(newline)
 
-  (let ((eval-obj (evaluate-position-at-ply position 1/2 #f)))
+  (let ((eval-obj (evaluate-position-at-ply position 1/2 4/2)))
       (display-eval-obj position eval-obj 32))
   (newline)
 
