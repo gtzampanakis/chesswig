@@ -1,5 +1,6 @@
 (import (util))
 (import (chesswig))
+(import (tests))
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
@@ -83,11 +84,14 @@
 
   ;(define position (decode-fen fen-promotion))
   (define position
-    (decode-fen "r1b2k1r/ppp1bppp/8/1B1Q4/5q2/2P5/PPP2PPP/R3R1K1 w - - 1 0"))
+    (decode-fen fen-mate-in-2-simplified))
+
+  (unless (run-tests)
+    (raise "tests-failed"))
 
   (display "Started")(newline)
 
-  (let ((eval-obj (evaluate-position-at-ply position 1/2 4/2)))
+  (let ((eval-obj (evaluate-position-at-ply position 3/2 #f)))
       (display-eval-obj position eval-obj 32))
   (newline)
 
