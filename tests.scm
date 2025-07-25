@@ -24,16 +24,42 @@
 (define (test-simple-mate-in-2)
   (define position
     (decode-fen fen-mate-in-2-simplified))
-  (let ((eval-obj (evaluate-position-at-ply position 3/2 #f)))
-      (assert-equal (length eval-obj) 50)))
+  (let ((moves (legal-moves position #f)))
+      (assert-equal (length moves) 50)))
+
+(define (test-king-can-be-exposed)
+  (let* (
+    (position (decode-fen "k7/8/8/8/8/2b5/1Q6/K7 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 3))
+  (let* (
+    (position (decode-fen "k7/8/8/8/8/2q5/1Q6/K7 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 3))
+  (let* (
+    (position (decode-fen "8/K1k5/P7/8/8/8/8/8 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 1))
+  (let* (
+    (position (decode-fen "k7/8/8/8/3b4/2n5/1Q6/K7 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 17))
+)
 
 (define (run-tests)
   (define r #t)
   (with-exception-handler
     (lambda (e)
       (set! r #f)
-      (display (append (list "test failed:" "test-simple-mate-in-2") e)))
+      (display (append (list "test failed:" "test-simple-mate-in-2") e))
+      (newline))
     test-simple-mate-in-2)
+  (with-exception-handler
+    (lambda (e)
+      (set! r #f)
+      (display (append (list "test failed:" "test-king-can-be-exposed") e))
+      (newline))
+    test-king-can-be-exposed)
   r)
 
 )
