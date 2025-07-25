@@ -84,7 +84,7 @@
 
   ;(define position (decode-fen fen-promotion))
   (define position
-    (decode-fen fen-mate-in-2-simplified))
+    (decode-fen fen-mate-in-2))
 
   (unless (run-tests)
     (raise "tests-failed"))

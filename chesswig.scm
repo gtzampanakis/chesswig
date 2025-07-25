@@ -126,7 +126,7 @@
 (define-record-type position
   (fields
     placement
-    (mutable active-color)
+    active-color
     castling
     en-passant
     halfmoves
@@ -690,6 +690,90 @@
     (not (= piece-2 E))
     (not (are-pieces-of-same-color? piece-1 piece-2))))
 
+(define (can-king-be-captured-diagonally position king king-coords)
+  (call/1cc
+    (lambda (cont)
+      (for-each
+        (lambda (dir)
+          (let loop (
+              (i 0)
+              (coords-ls (all-coords-in-direction king-coords dir)))
+            (if (null? coords-ls) #f
+              (let* (
+                  (coords (car coords-ls))
+                  (piece-found (piece-at-coords position coords)))
+                (cond
+                  ((= piece-found E)
+                    (loop (1+ i) (cdr coords-ls)))
+                  ((and
+                      (= i 0)
+                      (= king K)
+                      (or (= dir dir-ur) (= dir dir-ul))
+                      (= piece-found (pawn-of-opposite-color king)))
+                    (cont #t))
+                  ((and
+                      (= i 0)
+                      (= king k)
+                      (or (= dir dir-dr) (= dir dir-dl))
+                      (= piece-found (pawn-of-opposite-color king)))
+                    (cont #t))
+                  ((= piece-found (bishop-of-opposite-color king))
+                    (cont #t))
+                  ((= piece-found (queen-of-opposite-color king))
+                    (cont #t))
+                  ((and
+                      (= i 0)
+                      (= piece-found (king-of-opposite-color king)))
+                    (cont #t))
+                  (else #f))))))
+        bishop-directions))))
+
+(define (can-king-be-captured-by-file-or-rank position king king-coords)
+  (call/1cc
+    (lambda (cont)
+      (for-each
+        (lambda (dir)
+          (let loop (
+              (i 0)
+              (coords-ls (all-coords-in-direction king-coords dir)))
+            (if (null? coords-ls) #f
+              (let* (
+                  (coords (car coords-ls))
+                  (piece-found (piece-at-coords position coords)))
+                (cond
+                  ((= piece-found E)
+                    (loop (1+ i) (cdr coords-ls)))
+                  ((= piece-found (rook-of-opposite-color king))
+                    (cont #t))
+                  ((= piece-found (queen-of-opposite-color king))
+                    (cont #t))
+                  ((and
+                      (= i 0)
+                      (= piece-found (king-of-opposite-color king)))
+                    (cont #t))
+                  (else #f))))))
+        rook-directions))))
+
+(define (can-king-be-captured-by-knight position king king-coords)
+  (call/1cc
+    (lambda (cont)
+      (for-each
+        (lambda (dir)
+          (let loop (
+              (i 0)
+              (coords-ls (all-coords-in-direction king-coords dir)))
+            (if (or (null? coords-ls) (= i 1)) #f
+              (let* (
+                  (coords (car coords-ls))
+                  (piece-found (piece-at-coords position coords)))
+                (cond
+                  ((= piece-found E)
+                    (loop (1+ i) (cdr coords-ls)))
+                  ((= piece-found (knight-of-opposite-color king))
+                    (cont #t))
+                  (else #f))))))
+        knight-directions))))
+
 (define can-king-be-captured?
   (memoized-proc
     position-can-king-be-captured position-can-king-be-captured-set!
@@ -699,78 +783,18 @@
           (king (if (symbol=? active-color 'w) k K))
           (king-coords (find-coords-of-piece position king)))
         (or
-          (call/1cc
-            (lambda (cont)
-              (for-each
-                (lambda (dir)
-                  (let loop (
-                      (i 0)
-                      (coords-ls (all-coords-in-direction king-coords dir)))
-                    (if (null? coords-ls) #f
-                      (let* (
-                          (coords (car coords-ls))
-                          (piece-found (piece-at-coords position coords)))
-                        (cond
-                          ((= piece-found E)
-                            (loop (1+ i) (cdr coords-ls)))
-                          ((= piece-found (bishop-of-opposite-color king))
-                            (cont #t))
-                          ((and
-                              (= i 0)
-                              ; TODO: This should be modified to reflect the
-                              ; fact that pawns can only capture forward.
-                              (= piece-found (pawn-of-opposite-color king)))
-                            (cont #t))
-                          ((= piece-found (queen-of-opposite-color king))
-                            (cont #t))
-                          ((and
-                              (= i 0)
-                              (= piece-found (king-of-opposite-color king)))
-                            (cont #t))
-                          (else #f))))))
-                bishop-directions)))
-          (call/1cc
-            (lambda (cont)
-              (for-each
-                (lambda (dir)
-                  (let loop (
-                      (i 0)
-                      (coords-ls (all-coords-in-direction king-coords dir)))
-                    (if (null? coords-ls) #f
-                      (let* (
-                          (coords (car coords-ls))
-                          (piece-found (piece-at-coords position coords)))
-                        (cond
-                          ((= piece-found E)
-                            (loop (1+ i) (cdr coords-ls)))
-                          ((= piece-found (bishop-of-opposite-color king))
-                            (cont #t))
-                          ((= piece-found (queen-of-opposite-color king))
-                            (cont #t))
-                          ((and
-                              (= i 0)
-                              (= piece-found (king-of-opposite-color king)))
-                            (cont #t))
-                          (else #f))))))
-                rook-directions)))
-          (call/1cc
-            (lambda (cont)
-              (for-each
-                (lambda (dir)
-                  (let loop (
-                      (i 0)
-                      (coords-ls (all-coords-in-direction king-coords dir)))
-                    (if (or (null? coords-ls) (= i 1)) #f
-                      (let* (
-                          (coords (car coords-ls))
-                          (piece-found (piece-at-coords position coords)))
-                        (cond
-                          ((= piece-found E)
-                            (loop (1+ i) (cdr coords-ls)))
-                          ((= piece-found (knight-of-opposite-color king))
-                            (cont #t))
-                          (else #f))))))
-                knight-directions))))))))
+          (can-king-be-captured-diagonally
+            position
+            king
+            king-coords)
+          (can-king-be-captured-by-file-or-rank
+            position
+            king
+            king-coords)
+          (can-king-be-captured-by-knight
+            position
+            king
+            king-coords))))))
 
 (define (legal-squares-along-dirs-for-pawn position piece color coords)
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))

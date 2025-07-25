@@ -44,6 +44,14 @@
     (position (decode-fen "k7/8/8/8/3b4/2n5/1Q6/K7 w - - 0 1"))
     (moves (legal-moves position #f)))
       (assert-equal (length moves) 17))
+  (let* (
+    (position (decode-fen "k7/8/2p1p3/2P1P3/3K4/8/2p2p2/8 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 5))
+  (let* (
+    (position (decode-fen "k2q4/8/2p1p3/n1P1P3/3K4/7r/2pn1p2/8 w - - 0 1"))
+    (moves (legal-moves position #f)))
+      (assert-equal (length moves) 0))
 )
 
 (define (run-tests)
