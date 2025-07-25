@@ -599,20 +599,27 @@
 (define (piece-at-coords? position coords)
   (not (= (piece-at-coords position coords) E)))
 
+;(define is-position-check?
+;  (memoized-proc position-check position-check-set!
+;    (lambda (position-in)
+;      (define position (position-copy-w-toggled-active-color position-in))
+;      (define king-to-capture
+;        (if (symbol=? (position-active-color position) 'w) k K)) 
+;      (define moves (legal-moves position #f))
+;      (let loop ((moves moves))
+;        (if (null? moves)
+;          #f
+;          (let ((move (car moves)))
+;            (if (= (piece-at-coords position (caddr move)) king-to-capture)
+;              #t
+;              (loop (cdr moves)))))))))
+
 (define is-position-check?
   (memoized-proc position-check position-check-set!
     (lambda (position-in)
       (define position (position-copy-w-toggled-active-color position-in))
-      (define king-to-capture
-        (if (symbol=? (position-active-color position) 'w) k K)) 
-      (define moves (legal-moves position #f))
-      (let loop ((moves moves))
-        (if (null? moves)
-          #f
-          (let ((move (car moves)))
-            (if (= (piece-at-coords position (caddr move)) king-to-capture)
-              #t
-              (loop (cdr moves)))))))))
+      (can-king-be-captured?
+        (position-copy-w-toggled-active-color position-in)))))
 
 (define (is-position-checkmate? position)
   (and
