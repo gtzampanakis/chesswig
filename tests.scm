@@ -24,33 +24,33 @@
 (define (test-simple-mate-in-2)
   (define position
     (decode-fen fen-mate-in-2-simplified))
-  (let ((moves (legal-moves position #f)))
+  (let ((moves (legal-moves position)))
       (assert-equal (length moves) 50)))
 
 (define (test-king-can-be-exposed)
   (let* (
     (position (decode-fen "k7/8/8/8/8/2b5/1Q6/K7 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 3))
   (let* (
     (position (decode-fen "k7/8/8/8/8/2q5/1Q6/K7 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 3))
   (let* (
     (position (decode-fen "8/K1k5/P7/8/8/8/8/8 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 1))
   (let* (
     (position (decode-fen "k7/8/8/8/3b4/2n5/1Q6/K7 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 17))
   (let* (
     (position (decode-fen "k7/8/2p1p3/2P1P3/3K4/8/2p2p2/8 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 5))
   (let* (
     (position (decode-fen "k2q4/8/2p1p3/n1P1P3/3K4/7r/2pn1p2/8 w - - 0 1"))
-    (moves (legal-moves position #f)))
+    (moves (legal-moves position)))
       (assert-equal (length moves) 0))
 )
 

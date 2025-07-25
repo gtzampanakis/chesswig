@@ -441,8 +441,6 @@
   (string->number fullmoves-string))
 
 (define (position-copy-w-toggled-active-color position)
-; think cases where toggling the active color results in an invalid position,
-; for example when a check exists.
   (let ((color (position-active-color position)))
     (make-position
       (position-placement position)
@@ -617,18 +615,17 @@
 (define is-position-check?
   (memoized-proc position-check position-check-set!
     (lambda (position-in)
-      (define position (position-copy-w-toggled-active-color position-in))
       (can-king-be-captured?
         (position-copy-w-toggled-active-color position-in)))))
 
 (define (is-position-checkmate? position)
   (and
-    (null? (legal-moves position #f))
+    (null? (legal-moves position))
     (is-position-check? position)))
 
 (define (is-position-stalemate? position)
   (and
-    (null? (legal-moves position #f))
+    (null? (legal-moves position))
     (not (is-position-check? position))))
 
 (define (legal-squares-along-dirs-for-rook position piece color coords)
@@ -859,15 +856,13 @@
 
 (define legal-moves
   (memoized-proc position-moves position-moves-set!
-    (lambda (position allow-king-in-check)
+    (lambda (position)
       (let (
           (moves-w-king-possibly-in-check
             (legal-moves-w-king-possibly-in-check
               position)))
-        (if allow-king-in-check
-          moves-w-king-possibly-in-check
-          (filter-out-moves-to-that-bring-king-in-check
-                      position moves-w-king-possibly-in-check))))))
+        (filter-out-moves-to-that-bring-king-in-check
+                    position moves-w-king-possibly-in-check)))))
 
 (define legal-squares-along-dirs-w-king-possibly-in-check
   (lambda (position)
@@ -1175,7 +1170,7 @@
                 position quiesc-ply #f #t is-move-non-quiescent?)
               (eval-obj-of-static-eval position))
             (let* (
-                (all-moves (legal-moves position #f))
+                (all-moves (legal-moves position))
                 (all-moves
                   (if moves-filter-pred
                     (filter
