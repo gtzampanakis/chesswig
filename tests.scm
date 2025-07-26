@@ -16,10 +16,13 @@
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 (define fen-en-passant "5r2/7p/3R4/p3pk2/1p2N2p/1P2BP2/6PK/4r3 w - - 1 0")
 
+(define-condition-type &test-failure &condition make-test-failure test-failure?
+  (desc-ls test-failure-desc-ls))
+
 (define (assert-equal a b)
   (let ((r (equal? a b)))
     (unless r
-      (raise-continuable (list a "!=" b)))))
+      (raise-continuable (make-test-failure (list a "!=" b))))))
 
 (define (test-simple-mate-in-2)
   (define position
@@ -54,20 +57,49 @@
       (assert-equal (length moves) 0))
 )
 
+(define (test-is-position-check)
+  (let* (
+    (position (decode-fen "8/8/4p3/3K4/8/8/8/k7 w - - 0 1")))
+      (assert-equal (is-position-check? position) #t)))
+
 (define (run-tests)
   (define r #t)
   (with-exception-handler
     (lambda (e)
-      (set! r #f)
-      (display (append (list "test failed:" "test-simple-mate-in-2") e))
-      (newline))
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-simple-mate-in-2")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
     test-simple-mate-in-2)
   (with-exception-handler
     (lambda (e)
-      (set! r #f)
-      (display (append (list "test failed:" "test-king-can-be-exposed") e))
-      (newline))
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-king-can-be-exposed")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
     test-king-can-be-exposed)
+  (with-exception-handler
+    (lambda (e)
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-is-position-check")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
+    test-is-position-check)
   r)
 
 )

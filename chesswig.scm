@@ -614,9 +614,8 @@
 
 (define is-position-check?
   (memoized-proc position-check position-check-set!
-    (lambda (position-in)
-      (can-king-be-captured?
-        (position-copy-w-toggled-active-color position-in)))))
+    (lambda (position)
+      (can-king-be-captured? position (position-active-color position)))))
 
 (define (is-position-checkmate? position)
   (and
@@ -781,10 +780,9 @@
 (define can-king-be-captured?
   (memoized-proc
     position-can-king-be-captured position-can-king-be-captured-set!
-    (lambda (position)
+    (lambda (position king-color)
       (let* (
-          (active-color (position-active-color position))
-          (king (if (symbol=? active-color 'w) k K))
+          (king (if (symbol=? king-color 'w) K k))
           (king-coords (find-coords-of-piece position king)))
         (or
           (can-king-be-captured-diagonally
@@ -851,7 +849,10 @@
 (define (filter-out-moves-to-that-bring-king-in-check position moves)
   (filter
     (lambda (move)
-      (not (can-king-be-captured? (position-after-move position move))))
+      (not
+        (can-king-be-captured?
+          (position-after-move position move)
+          (position-active-color position))))
     moves))
 
 (define legal-moves
