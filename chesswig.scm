@@ -181,8 +181,6 @@
                 result))
             ))))))
 
-(define all-coords (iota 64))
-
 (define (placement-ref position coords)
   (bytevector-u8-ref (position-placement position) coords))
 
@@ -190,12 +188,10 @@
   (apply append
     (map
       (lambda (color-wanted)
-        (define cs all-coords)
-        (let loop ((result '()) (trimmed '()) (cs cs))
-          (if (null? cs)
+        (let loop ((result '()) (trimmed '()) (coords 0))
+          (if (= coords 64)
             result
             (let* (
-                (coords (car cs))
                 (piece-found (piece-at-coords position coords))
                 (color-found (piece-color piece-found)))
               (let ((correct-color? (symbol=? color-found color-wanted)))
@@ -206,16 +202,16 @@
                   (if correct-color?
                     (cons coords trimmed)
                     trimmed)
-                  (cdr cs)))))))
+                  (1+ coords)))))))
       (append
         (if include-white? (list 'w) '())
         (if include-black? (list 'b) '())))))
 
 (define (for-each-over-placement proc position)
-  (for-each
-    (lambda (coords)
-      (proc (placement-ref position coords) coords))
-    all-coords))
+  (let loop ((coords 0))
+    (when (< coords 64)
+      (proc (placement-ref position coords) coords)
+      (loop (1+ coords)))))
 
 (define (char->symbol char)
   (string->symbol (string char)))
@@ -583,7 +579,7 @@
                     (loop next-coords (cons next-coords result))
                     (reverse result)))))
             all-directions)))
-      all-coords)))
+      (iota 64))))
 
 (define (all-coords-in-direction coords direction)
   (vector-ref
@@ -659,13 +655,13 @@
 ;              (loop (cdr moves)))))))))
 
 (define (find-coords-of-piece position piece-to-find)
-  (call/1cc
-    (lambda (cont)
-      (for-each-over-placement
-        (lambda (piece coords)
-          (when (= piece-to-find piece)
-            (cont coords)))
-        position))))
+  (let loop ((coords 0))
+    (if (< coords 64)
+      (let* ((piece (placement-ref position coords)))
+        (if (= piece-to-find piece)
+          coords
+          (loop (1+ coords))))
+      '())))
 
 (define (bishop-of-opposite-color piece)
   (if (symbol=? (piece-color piece) 'w) b B))
