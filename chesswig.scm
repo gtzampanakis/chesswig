@@ -16,6 +16,7 @@
   position-en-passant
   is-position-check?
   is-position-checkmate?
+  is-position-stalemate?
   P p
   R r
   track-positions-examined?

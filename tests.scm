@@ -62,6 +62,16 @@
     (position (decode-fen "8/8/4p3/3K4/8/8/8/k7 w - - 0 1")))
       (assert-equal (is-position-check? position) #t)))
 
+(define (test-is-position-checkmate)
+  (let* (
+    (position (decode-fen "4n3/3b1p2/1p2p3/3K2n1/8/2nk4/8/4r3 w - - 0 1")))
+      (assert-equal (is-position-checkmate? position) #t)))
+
+(define (test-is-position-stalemate)
+  (let* (
+    (position (decode-fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1")))
+      (assert-equal (is-position-stalemate? position) #t)))
+
 (define (run-tests)
   (define r #t)
   (with-exception-handler
@@ -100,6 +110,30 @@
           (newline))
         (raise e)))
     test-is-position-check)
+  (with-exception-handler
+    (lambda (e)
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-is-position-checkmate")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
+    test-is-position-checkmate)
+  (with-exception-handler
+    (lambda (e)
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-is-position-stalemate")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
+    test-is-position-stalemate)
   r)
 
 )
