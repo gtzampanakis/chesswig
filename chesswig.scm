@@ -594,21 +594,6 @@
 (define (piece-at-coords? position coords)
   (not (= (piece-at-coords position coords) E)))
 
-;(define is-position-check?
-;  (memoized-proc position-check position-check-set!
-;    (lambda (position-in)
-;      (define position (position-copy-w-toggled-active-color position-in))
-;      (define king-to-capture
-;        (if (symbol=? (position-active-color position) 'w) k K)) 
-;      (define moves (legal-moves position #f))
-;      (let loop ((moves moves))
-;        (if (null? moves)
-;          #f
-;          (let ((move (car moves)))
-;            (if (= (piece-at-coords position (caddr move)) king-to-capture)
-;              #t
-;              (loop (cdr moves)))))))))
-
 (define is-position-check?
   (memoized-proc position-check position-check-set!
     (lambda (position)
@@ -639,20 +624,6 @@
 (define (legal-squares-along-dirs-for-king position piece color coords)
   (legal-squares-along-directions
       piece color coords position king-directions 1 #t #t))
-
-;(define can-king-be-captured?
-;  (memoized-proc
-;    position-can-king-be-captured position-can-king-be-captured-set!
-;    (lambda (position)
-;      (define active-color (position-active-color position))
-;      (define king (if (symbol=? active-color 'w) k K))
-;      (let loop ((moves (legal-moves position #t)))
-;        (if (null? moves)
-;          #f
-;          (let ((move (car moves)))
-;            (if (= (piece-at-coords position (caddr move)) king)
-;              #t
-;              (loop (cdr moves)))))))))
 
 (define (find-coords-of-piece position piece-to-find)
   (let loop ((coords 0))
@@ -691,68 +662,65 @@
     (not (are-pieces-of-same-color? piece-1 piece-2))))
 
 (define (can-king-be-captured-diagonally position king king-coords)
-  (call/1cc
-    (lambda (cont)
-      (for-each
-        (lambda (dir)
-          (let loop (
-              (i 0)
-              (coords-ls (all-coords-in-direction king-coords dir)))
-            (if (null? coords-ls) #f
-              (let* (
-                  (coords (car coords-ls))
-                  (piece-found (piece-at-coords position coords)))
-                (cond
-                  ((= piece-found E)
-                    (loop (1+ i) (cdr coords-ls)))
-                  ((and
-                      (= i 0)
-                      (= king K)
-                      (or (= dir dir-ur) (= dir dir-ul))
-                      (= piece-found (pawn-of-opposite-color king)))
-                    (cont #t))
-                  ((and
-                      (= i 0)
-                      (= king k)
-                      (or (= dir dir-dr) (= dir dir-dl))
-                      (= piece-found (pawn-of-opposite-color king)))
-                    (cont #t))
-                  ((= piece-found (bishop-of-opposite-color king))
-                    (cont #t))
-                  ((= piece-found (queen-of-opposite-color king))
-                    (cont #t))
-                  ((and
-                      (= i 0)
-                      (= piece-found (king-of-opposite-color king)))
-                    (cont #t))
-                  (else #f))))))
-        bishop-directions))))
+  (ormap
+    (lambda (dir)
+      (let loop (
+          (i 0)
+          (coords-ls (all-coords-in-direction king-coords dir)))
+        (if (null? coords-ls) #f
+          (let* (
+              (coords (car coords-ls))
+              (piece-found (piece-at-coords position coords)))
+            (cond
+              ((= piece-found E)
+                (loop (1+ i) (cdr coords-ls)))
+              ((and
+                  (= i 0)
+                  (= king K)
+                  (or (= dir dir-ur) (= dir dir-ul))
+                  (= piece-found (pawn-of-opposite-color king)))
+                #t)
+              ((and
+                  (= i 0)
+                  (= king k)
+                  (or (= dir dir-dr) (= dir dir-dl))
+                  (= piece-found (pawn-of-opposite-color king)))
+                #t)
+              ((= piece-found (bishop-of-opposite-color king))
+                #t)
+              ((= piece-found (queen-of-opposite-color king))
+                #t)
+              ((and
+                  (= i 0)
+                  (= piece-found (king-of-opposite-color king)))
+                #t)
+              (else #f))))))
+    bishop-directions))
 
 (define (can-king-be-captured-by-file-or-rank position king king-coords)
-  (call/1cc
-    (lambda (cont)
-      (for-each
-        (lambda (dir)
-          (let loop (
-              (i 0)
-              (coords-ls (all-coords-in-direction king-coords dir)))
-            (if (null? coords-ls) #f
-              (let* (
-                  (coords (car coords-ls))
-                  (piece-found (piece-at-coords position coords)))
-                (cond
-                  ((= piece-found E)
-                    (loop (1+ i) (cdr coords-ls)))
-                  ((= piece-found (rook-of-opposite-color king))
-                    (cont #t))
-                  ((= piece-found (queen-of-opposite-color king))
-                    (cont #t))
-                  ((and
-                      (= i 0)
-                      (= piece-found (king-of-opposite-color king)))
-                    (cont #t))
-                  (else #f))))))
-        rook-directions))))
+  (ormap
+    (lambda (dir)
+      (let loop (
+          (i 0)
+          (coords-ls (all-coords-in-direction king-coords dir)))
+        (if (null? coords-ls) #f
+          (let* (
+              (coords (car coords-ls))
+              (piece-found (piece-at-coords position coords)))
+            (cond
+              ((= piece-found E)
+                (loop (1+ i) (cdr coords-ls)))
+              ((= piece-found (rook-of-opposite-color king))
+                #t)
+              ((= piece-found (queen-of-opposite-color king))
+                #t)
+              ((and
+                  (= i 0)
+                  (= piece-found (king-of-opposite-color king)))
+                #t)
+              (else #f))))))
+    rook-directions))
+
 
 (define (can-king-be-captured-by-knight position king king-coords)
   (let loop ((dirs knight-directions))
