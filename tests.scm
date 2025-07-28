@@ -72,6 +72,11 @@
     (position (decode-fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1")))
       (assert-equal (is-position-stalemate? position) #t)))
 
+(define (test-decode-encode-fen)
+  (let* (
+    (fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1"))
+      (assert-equal (encode-fen (decode-fen fen)) fen)))
+
 (define (run-tests)
   (define r #t)
   (with-exception-handler
@@ -134,6 +139,18 @@
           (newline))
         (raise e)))
     test-is-position-stalemate)
+  (with-exception-handler
+    (lambda (e)
+      (if (test-failure? e)
+        (begin
+          (set! r #f)
+          (display
+            (append
+              (list "test failed:" "test-decode-encode-fen")
+              (test-failure-desc-ls e)))
+          (newline))
+        (raise e)))
+    test-decode-encode-fen)
   r)
 
 )

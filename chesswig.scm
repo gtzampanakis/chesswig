@@ -8,6 +8,7 @@
   alg-to-square
   display-move-seq
   display-eval-obj
+  display-position
   evaluate-position-at-ply
   legal-moves
   cls-to-coords
@@ -1167,10 +1168,51 @@
               unsorted-eval-obj)))
         (sort-eval-obj position unsorted-eval-obj)))))
 
+(define (piece->board-string piece)
+  (cond
+    ((= piece E) " ")
+    ((= piece P) "P")
+    ((= piece P) "P")
+    ((= piece R) "R")
+    ((= piece N) "N")
+    ((= piece B) "B")
+    ((= piece Q) "Q")
+    ((= piece K) "K")
+    ((= piece p) "p")
+    ((= piece r) "r")
+    ((= piece n) "n")
+    ((= piece b) "b")
+    ((= piece q) "q")
+    ((= piece k) "k")))
+
+(define (position-to-board-string position)
+  (define s "")
+  (set! s (string-append s "+---+---+---+---+---+---+---+---+\n"))
+  (let loop-r ((r 7))
+    (when (>= r 0)
+      (set! s (string-append s "|"))
+      (let loop-f ((f 0))
+        (when (< f 8)
+          (set! s (string-append s " "))
+          (set! s (string-append s
+                    (piece->board-string
+                        (piece-at-coords position (cls-to-coords (list f r))))))
+          (set! s (string-append s " "))
+          (set! s (string-append s "|"))
+          (loop-f (1+ f))))
+      (set! s (string-append s "\n"))
+      (set! s (string-append s "+---+---+---+---+---+---+---+---+\n"))
+      (loop-r (1- r))))
+  s)
+
 (define (display-position position)
   (let* ((enc (encode-fen position)))
+    (display "==========================================\n")
     (display "position: ")
     (display enc)
+    (newline)
+    (display (position-to-board-string position))
+    (display "==========================================\n")
     (newline)))
 
 )
