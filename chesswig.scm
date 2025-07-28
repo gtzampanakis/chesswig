@@ -755,25 +755,19 @@
         rook-directions))))
 
 (define (can-king-be-captured-by-knight position king king-coords)
-  (call/1cc
-    (lambda (cont)
-      (for-each
-        (lambda (dir)
-          (let loop (
-              (i 0)
-              (coords-ls (all-coords-in-direction king-coords dir)))
-            (if (or (null? coords-ls) (= i 1)) #f
-              (let* (
-                  (coords (car coords-ls))
-                  (piece-found (piece-at-coords position coords)))
-                (cond
-                  ((= piece-found E)
-                    (loop (1+ i) (cdr coords-ls)))
-                  ((= piece-found (knight-of-opposite-color king))
-                    (cont #t))
-                  (else #f))))))
-        knight-directions))))
-
+  (let loop ((dirs knight-directions))
+    (if (null? dirs) #f
+      (let* (
+          (dir (car dirs))
+          (coords-ls (all-coords-in-direction king-coords dir)))
+        (if
+          (and
+            (not (null? coords-ls))
+            (let ((piece-found (piece-at-coords position (car coords-ls))))
+              (= piece-found (knight-of-opposite-color king))))
+          #t
+          (loop (cdr dirs)))))))
+              
 (define can-king-be-captured?
   (memoized-proc
     position-can-king-be-captured position-can-king-be-captured-set!
