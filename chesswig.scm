@@ -1149,8 +1149,7 @@
                                     can-stay?
                                     moves-filter-pred)))
                               (combine-move-w-eval-obj move eval-obj))
-                            r)
-                          ))))))
+                            r)))))))
                 (if (null? eval-obj)
                   (eval-obj-of-static-eval position)
                   eval-obj)))))

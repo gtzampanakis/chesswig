@@ -93,7 +93,7 @@
 
   (display-position position)
 
-  (let ((eval-obj (evaluate-position-at-ply position 3/2 3/2)))
+  (let ((eval-obj (evaluate-position-at-ply position 3/2 0/2)))
       (display-eval-obj position eval-obj 8))
   (newline)
 
