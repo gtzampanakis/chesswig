@@ -27,6 +27,9 @@
 
 ; TODO: if moves are forced, evaluate them
 
+; TODO: optimize static evaluation by caching it and updating it only when a
+; capture happens.
+
 (define track-positions-examined? #t)
 
 (define n-positions-examined (cons 0 -1))
@@ -189,27 +192,27 @@
   (bytevector-u8-ref placement coords))
 
 (define (map-over-placement include-white? include-black? proc position)
-  (apply append
-    (map
-      (lambda (color-wanted)
-        (let loop ((result '()) (trimmed '()) (coords 0))
-          (if (= coords 64)
-            result
-            (let* (
-                (piece-found (piece-at-coords position coords))
-                (color-found (piece-color piece-found)))
-              (let ((correct-color? (symbol=? color-found color-wanted)))
-                (loop
-                  (if correct-color?
-                    (cons (proc piece-found coords) result)
-                    result)
-                  (if correct-color?
-                    (cons coords trimmed)
-                    trimmed)
-                  (1+ coords)))))))
-      (append
-        (if include-white? (list 'w) '())
-        (if include-black? (list 'b) '())))))
+  (define producer
+    (lambda (color-wanted initial)
+      (let loop ((result initial) (coords 0))
+        (if (= coords 64)
+          result
+          (let* (
+              (piece-found (piece-at-coords position coords))
+              (color-found (piece-color piece-found)))
+            (let ((correct-color? (symbol=? color-found color-wanted)))
+              (loop
+                (if correct-color?
+                  (cons (proc piece-found coords) result)
+                  result)
+                (1+ coords))))))))
+    (if include-white?
+      (if include-black?
+        (producer 'w (producer 'b '()))
+        (producer 'w '()))
+      (if include-black?
+        (producer 'b '())
+        '())))
 
 (define (for-each-over-placement proc position)
   (let loop ((coords 0))
@@ -644,15 +647,6 @@
 
 (define (knight-of-opposite-color king)
   (if (= king K) n N))
-
-(define (are-pieces-of-same-color? piece-1 piece-2)
-  (symbol=? (piece-color piece-1) (piece-color piece-2)))
-
-(define (are-pieces-of-opposite-color? piece-1 piece-2)
-  (and
-    (not (= piece-1 E))
-    (not (= piece-2 E))
-    (not (are-pieces-of-same-color? piece-1 piece-2))))
 
 (define (can-king-be-captured-diagonally position king king-coords)
   (ormap
