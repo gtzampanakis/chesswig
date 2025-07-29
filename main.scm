@@ -93,9 +93,9 @@
 
   (display-position position)
 
-  ; (let ((eval-obj (evaluate-position-at-ply position 3/2 #f)))
-  ;     (display-eval-obj position eval-obj 32))
-  ; (newline)
+  (let ((eval-obj (evaluate-position-at-ply position 3/2 3/2)))
+      (display-eval-obj position eval-obj 8))
+  (newline)
 
   (when track-positions-examined?
     (display "Number of positions examined: ")

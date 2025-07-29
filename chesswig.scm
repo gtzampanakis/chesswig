@@ -1104,20 +1104,12 @@
       )))
 
 (define (is-move-non-quiescent? position move)
-  (let
-    (
-      (pos-static-val (evaluate-position-static position))
-      (new-pos-static-val
-        (evaluate-position-static (position-after-move position move)))
-      (active-color (position-active-color position)))
-    (if (symbol=? active-color 'w)
-      (>= (- new-pos-static-val pos-static-val) 1)
-      (<= (- new-pos-static-val pos-static-val) -1))))
+  (is-move-capture? position move))
 
 (define evaluate-position-at-ply
   (case-lambda
     ((position ply)
-      (evaluate-position-at-ply position ply #t #f #f))
+      (evaluate-position-at-ply position ply #t #f 0))
     ((position ply quiesc-ply)
       (evaluate-position-at-ply position ply quiesc-ply #f #f))
     ((position ply quiesc-ply can-stay? moves-filter-pred)
@@ -1126,9 +1118,9 @@
       (let* (
         (unsorted-eval-obj
           (if (= ply 0)
-            (if quiesc-ply
+            (if (> quiesc-ply 0)
               (evaluate-position-at-ply
-                position quiesc-ply #f #t is-move-non-quiescent?)
+                position quiesc-ply 0 #t is-move-non-quiescent?)
               (eval-obj-of-static-eval position))
             (let* (
                 (all-moves (legal-moves position))
@@ -1171,19 +1163,18 @@
 (define (piece->board-string piece)
   (cond
     ((= piece E) " ")
-    ((= piece P) "P")
-    ((= piece P) "P")
-    ((= piece R) "R")
-    ((= piece N) "N")
-    ((= piece B) "B")
-    ((= piece Q) "Q")
-    ((= piece K) "K")
-    ((= piece p) "p")
-    ((= piece r) "r")
-    ((= piece n) "n")
-    ((= piece b) "b")
-    ((= piece q) "q")
-    ((= piece k) "k")))
+    ((= piece P) "\x2659;")
+    ((= piece R) "\x2656;")
+    ((= piece N) "\x2658;")
+    ((= piece B) "\x2657;")
+    ((= piece Q) "\x2655;")
+    ((= piece K) "\x2654;")
+    ((= piece p) "\x265f;")
+    ((= piece r) "\x265c;")
+    ((= piece n) "\x265e;")
+    ((= piece b) "\x265d;")
+    ((= piece q) "\x265b;")
+    ((= piece k) "\x265a;")))
 
 (define (position-to-board-string position)
   (define s "")
