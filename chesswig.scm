@@ -627,23 +627,23 @@
           (loop (1+ coords))))
       '())))
 
-(define (bishop-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) b B))
+(define (bishop-of-opposite-color king)
+  (if (= king K) b B))
 
-(define (rook-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) r R))
+(define (rook-of-opposite-color king)
+  (if (= king K) r R))
 
-(define (queen-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) q Q))
+(define (queen-of-opposite-color king)
+  (if (= king K) q Q))
 
-(define (king-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) k K))
+(define (king-of-opposite-color king)
+  (if (= king K) k K))
 
-(define (pawn-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) p P))
+(define (pawn-of-opposite-color king)
+  (if (= king K) p P))
 
-(define (knight-of-opposite-color piece)
-  (if (symbol=? (piece-color piece) 'w) n N))
+(define (knight-of-opposite-color king)
+  (if (= king K) n N))
 
 (define (are-pieces-of-same-color? piece-1 piece-2)
   (symbol=? (piece-color piece-1) (piece-color piece-2)))
@@ -657,6 +657,10 @@
 (define (can-king-be-captured-diagonally position king king-coords)
   (ormap
     (lambda (dir)
+      (define opposite-pawn (pawn-of-opposite-color king))
+      (define opposite-bishop (bishop-of-opposite-color king))
+      (define opposite-queen (queen-of-opposite-color king))
+      (define opposite-king (king-of-opposite-color king))
       (let loop (
           (i 0)
           (coords-ls (all-coords-in-direction king-coords dir)))
@@ -671,21 +675,21 @@
                   (= i 0)
                   (= king K)
                   (or (= dir dir-ur) (= dir dir-ul))
-                  (= piece-found (pawn-of-opposite-color king)))
+                  (= piece-found opposite-pawn))
                 #t)
               ((and
                   (= i 0)
                   (= king k)
                   (or (= dir dir-dr) (= dir dir-dl))
-                  (= piece-found (pawn-of-opposite-color king)))
+                  (= piece-found opposite-pawn))
                 #t)
-              ((= piece-found (bishop-of-opposite-color king))
+              ((= piece-found opposite-bishop)
                 #t)
-              ((= piece-found (queen-of-opposite-color king))
+              ((= piece-found opposite-queen)
                 #t)
               ((and
                   (= i 0)
-                  (= piece-found (king-of-opposite-color king)))
+                  (= piece-found opposite-king))
                 #t)
               (else #f))))))
     bishop-directions))
@@ -693,6 +697,9 @@
 (define (can-king-be-captured-by-file-or-rank position king king-coords)
   (ormap
     (lambda (dir)
+      (define opposite-rook (rook-of-opposite-color king))
+      (define opposite-queen (queen-of-opposite-color king))
+      (define opposite-king (king-of-opposite-color king))
       (let loop (
           (i 0)
           (coords-ls (all-coords-in-direction king-coords dir)))
@@ -703,19 +710,20 @@
             (cond
               ((= piece-found E)
                 (loop (1+ i) (cdr coords-ls)))
-              ((= piece-found (rook-of-opposite-color king))
+              ((= piece-found opposite-rook)
                 #t)
-              ((= piece-found (queen-of-opposite-color king))
+              ((= piece-found opposite-queen)
                 #t)
               ((and
                   (= i 0)
-                  (= piece-found (king-of-opposite-color king)))
+                  (= piece-found opposite-king))
                 #t)
               (else #f))))))
     rook-directions))
 
 
 (define (can-king-be-captured-by-knight position king king-coords)
+  (define opposite-knight (knight-of-opposite-color king))
   (let loop ((dirs knight-directions))
     (if (null? dirs) #f
       (let* (
@@ -725,7 +733,7 @@
           (and
             (not (null? coords-ls))
             (let ((piece-found (piece-at-coords position (car coords-ls))))
-              (= piece-found (knight-of-opposite-color king))))
+              (= piece-found opposite-knight)))
           #t
           (loop (cdr dirs)))))))
               
