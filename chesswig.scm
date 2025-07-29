@@ -135,6 +135,8 @@
     fullmoves
     parent-position
     parent-move
+    coords-K
+    coords-k
     (mutable moves)
     (mutable static-val)
     (mutable eval-at-ply)
@@ -144,12 +146,13 @@
     (lambda (p)
       (lambda (placement active-color castling
                 en-passant halfmoves
-                fullmoves parent-position parent-move)
+                fullmoves parent-position parent-move
+                coords-K coords-k)
         (let ((obj
                 (p placement active-color castling
                     en-passant halfmoves
                     fullmoves parent-position parent-move
-                    '() '() '() '() '())))
+                    coords-K coords-k '() '() '() '() '())))
           obj)
         ))))
 
@@ -182,8 +185,8 @@
                 result))
             ))))))
 
-(define (placement-ref position coords)
-  (bytevector-u8-ref (position-placement position) coords))
+(define (placement-ref placement coords)
+  (bytevector-u8-ref placement coords))
 
 (define (map-over-placement include-white? include-black? proc position)
   (apply append
@@ -211,7 +214,7 @@
 (define (for-each-over-placement proc position)
   (let loop ((coords 0))
     (when (< coords 64)
-      (proc (placement-ref position coords) coords)
+      (proc (placement-ref (position-placement position) coords) coords)
       (loop (1+ coords)))))
 
 (define (char->symbol char)
@@ -409,7 +412,7 @@
     (string->list rank-string)))
 
 (define (piece-at-coords position coords)
-  (placement-ref position coords))
+  (placement-ref (position-placement position) coords))
 
 (define (decode-placement-data placement-data-string)
   (u8-list->bytevector
@@ -438,19 +441,6 @@
 (define (decode-fullmoves fullmoves-string)
   (string->number fullmoves-string))
 
-(define (position-copy-w-toggled-active-color position)
-  (let ((color (position-active-color position)))
-    (make-position
-      (position-placement position)
-      (if (symbol=? color 'w) 'b 'w)
-      (position-castling position)
-      (position-en-passant position)
-      (position-halfmoves position)
-      (position-fullmoves position)
-      #f
-      #f
-      )))
-
 (define (decode-fen fen-string)
   (let ((field-strings (string-split fen-string #\ )))
     (let ((placement (decode-placement-data (list-ref field-strings 0))))
@@ -462,6 +452,8 @@
         (decode-halfmoves (list-ref field-strings 4))
         (decode-fullmoves (list-ref field-strings 5))
         #f #f
+        (find-coords-of-piece placement K)
+        (find-coords-of-piece placement k)
         ))))
 
 (define (inc-char char)
@@ -626,10 +618,10 @@
   (legal-squares-along-directions
       piece color coords position king-directions 1 #t #t))
 
-(define (find-coords-of-piece position piece-to-find)
+(define (find-coords-of-piece placement piece-to-find)
   (let loop ((coords 0))
     (if (< coords 64)
-      (let* ((piece (placement-ref position coords)))
+      (let* ((piece (placement-ref placement coords)))
         (if (= piece-to-find piece)
           coords
           (loop (1+ coords))))
@@ -743,7 +735,10 @@
     (lambda (position king-color)
       (let* (
           (king (if (symbol=? king-color 'w) K k))
-          (king-coords (find-coords-of-piece position king)))
+          (king-coords
+            (if (= king K)
+              (position-coords-K position)
+              (position-coords-k position))))
         (or
           (can-king-be-captured-diagonally
             position
@@ -910,7 +905,9 @@
         (position-fullmoves position)
         (if (symbol=? (position-active-color position) 'b) 1 0))
       position
-      move)))
+      move
+      (if (= piece K) coords-to (position-coords-K position))
+      (if (= piece k) coords-to (position-coords-k position)))))
 
 (define (piece-base-value piece)
   (cond
