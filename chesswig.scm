@@ -25,11 +25,6 @@
 )
 (import (chezscheme) (util) (unpack))
 
-; TODO: if moves are forced, evaluate them
-
-; TODO: optimize static evaluation by caching it and updating it only when a
-; capture happens.
-
 (define track-positions-examined? #t)
 
 (define n-positions-examined (cons 0 -1))
@@ -138,6 +133,7 @@
     fullmoves
     parent-position
     parent-move
+    parent-move-captured-piece
     coords-K
     coords-k
     (mutable moves)
@@ -149,12 +145,16 @@
     (lambda (p)
       (lambda (placement active-color castling
                 en-passant halfmoves
-                fullmoves parent-position parent-move
+                fullmoves
+                parent-position parent-move
+                parent-move-captured-piece
                 coords-K coords-k)
         (let ((obj
                 (p placement active-color castling
                     en-passant halfmoves
-                    fullmoves parent-position parent-move
+                    fullmoves
+                    parent-position parent-move
+                    parent-move-captured-piece
                     coords-K coords-k '() '() '() '() '())))
           obj)
         ))))
@@ -454,7 +454,7 @@
         (decode-en-passant (list-ref field-strings 3))
         (decode-halfmoves (list-ref field-strings 4))
         (decode-fullmoves (list-ref field-strings 5))
-        #f #f
+        #f #f #f
         (find-coords-of-piece placement K)
         (find-coords-of-piece placement k)
         ))))
@@ -869,10 +869,11 @@
 (define (position-after-move position move)
   (list-unpack move (piece coords-from coords-to promotion-piece)
     (define capture? (is-move-capture? position move))
+    (define en-passant-capture? (is-move-en-passant-capture? position move))
     (define pawn-move? (= (modulo piece E) 1))
     (define new-placement (bytevector-copy (position-placement position)))
     (bytevector-u8-set! new-placement coords-from E)
-    (when (and capture? (is-move-en-passant-capture? position move))
+    (when (and capture? en-passant-capture?)
       (bytevector-u8-set!
         new-placement
         (let (
@@ -908,6 +909,11 @@
         (if (symbol=? (position-active-color position) 'b) 1 0))
       position
       move
+      (cond
+        (en-passant-capture?
+          (if (symbol=? (position-active-color position) 'w) p P))
+        (capture? (piece-at-coords position coords-to))
+        (else #f))
       (if (= piece K) coords-to (position-coords-K position))
       (if (= piece k) coords-to (position-coords-k position)))))
 
