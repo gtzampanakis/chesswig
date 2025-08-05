@@ -742,11 +742,11 @@
               (position-coords-K position)
               (position-coords-k position))))
         (or
-          (can-king-be-captured-diagonally
+          (can-king-be-captured-by-file-or-rank
             position
             king
             king-coords)
-          (can-king-be-captured-by-file-or-rank
+          (can-king-be-captured-diagonally
             position
             king
             king-coords)
