@@ -19,6 +19,32 @@
 (define-condition-type &test-failure &condition make-test-failure test-failure?
   (desc-ls test-failure-desc-ls))
 
+(define-syntax run-test
+  (syntax-rules ()
+    ((_ test-name result-var)
+      (with-exception-handler
+        (lambda (e)
+          (if (test-failure? e)
+            (begin
+              (set! result-var #f)
+              (display
+                (append
+                  (list "test failed:" (quote test-name))
+                  (test-failure-desc-ls e)))
+              (newline))
+            (raise e)))
+        test-name))))
+
+(define (run-tests)
+  (define r #t)
+  (run-test test-simple-mate-in-2 r)
+  (run-test test-king-can-be-exposed r)
+  (run-test test-is-position-check r)
+  (run-test test-is-position-checkmate r)
+  (run-test test-is-position-stalemate r)
+  (run-test test-decode-encode-fen r)
+  r)
+
 (define (assert-equal a b)
   (let ((r (equal? a b)))
     (unless r
@@ -76,81 +102,5 @@
   (let* (
     (fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1"))
       (assert-equal (encode-fen (decode-fen fen)) fen)))
-
-(define (run-tests)
-  (define r #t)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-simple-mate-in-2")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-simple-mate-in-2)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-king-can-be-exposed")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-king-can-be-exposed)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-is-position-check")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-is-position-check)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-is-position-checkmate")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-is-position-checkmate)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-is-position-stalemate")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-is-position-stalemate)
-  (with-exception-handler
-    (lambda (e)
-      (if (test-failure? e)
-        (begin
-          (set! r #f)
-          (display
-            (append
-              (list "test failed:" "test-decode-encode-fen")
-              (test-failure-desc-ls e)))
-          (newline))
-        (raise e)))
-    test-decode-encode-fen)
-  r)
 
 )
