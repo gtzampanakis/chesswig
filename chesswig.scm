@@ -21,8 +21,14 @@
   is-position-stalemate?
   P p
   R r
+  N n
+  B b
+  K k
+  Q q
   track-positions-examined?
   n-positions-examined
+  desc-args->position
+  piece-algs->move
 )
 (import (chezscheme) (util) (unpack))
 
@@ -134,7 +140,6 @@
     fullmoves
     parent-position
     parent-move
-    parent-move-captured-piece
     coords-K
     coords-k
     (mutable moves)
@@ -148,14 +153,12 @@
                 en-passant halfmoves
                 fullmoves
                 parent-position parent-move
-                parent-move-captured-piece
                 coords-K coords-k)
         (let ((obj
                 (p placement active-color castling
                     en-passant halfmoves
                     fullmoves
                     parent-position parent-move
-                    parent-move-captured-piece
                     coords-K coords-k '() '() '() '() '())))
           obj)
         ))))
@@ -455,7 +458,7 @@
         (decode-en-passant (list-ref field-strings 3))
         (decode-halfmoves (list-ref field-strings 4))
         (decode-fullmoves (list-ref field-strings 5))
-        #f #f #f
+        #f #f
         (find-coords-of-piece placement K)
         (find-coords-of-piece placement k)
         ))))
@@ -823,8 +826,33 @@
         (filter-out-moves-to-that-bring-king-in-check
                     position moves-w-king-possibly-in-check)))))
 
-(define (updates-to-legal-moves-caused-by-move legal-moves-ls move)
-  'foo)
+(define (updates-to-legal-moves-caused-by-move position move)
+  ; TODO: check from coords-from
+  (list-unpack move (piece coords-from coords-to promotion-piece)
+    (let* ((moves (legal-moves position)))
+      (let loop ((acc '()) (dirs rook-directions))
+        (if (null? dirs) acc
+          (loop
+            (let ((dir (car dirs)))
+              (let loop (
+                  (acc acc)
+                  (all-coords (all-coords-in-direction coords-to dir)))
+                (if (null? all-coords) acc
+                  (let ((coords (car all-coords)))
+                    (let (
+                        (piece
+                          (if (= coords coords-from)
+                            E
+                            (piece-at-coords position coords))))
+                      (cond
+                        ((= piece R) (cons coords acc))
+                        ((= piece r) (cons coords acc))
+                        ((= piece Q) (cons coords acc))
+                        ((= piece q) (cons coords acc))
+                        ((= piece K) (cons coords acc))
+                        ((= piece k) (cons coords acc))
+                        (else (loop acc (cdr all-coords)))))))))
+            (cdr dirs)))))))
 
 (define legal-squares-along-dirs-w-king-possibly-in-check
   (lambda (position)
@@ -913,11 +941,6 @@
         (if (symbol=? (position-active-color position) 'b) 1 0))
       position
       move
-      (cond
-        (en-passant-capture?
-          (if (symbol=? (position-active-color position) 'w) p P))
-        (capture? (piece-at-coords position coords-to))
-        (else #f))
       (if (= piece K) coords-to (position-coords-K position))
       (if (= piece k) coords-to (position-coords-k position)))))
 
@@ -1214,12 +1237,29 @@
     (display "==========================================\n")
     (newline)))
 
-p "a4"
+(define (piece-alg-ls->placement piece-alg-ls)
+  (let ((placement (u8-list->bytevector (make-list 64 E))))
+    (for-each-list-unpack (piece alg) piece-alg-ls
+      (bytevector-u8-set! placement (cls->coords (alg->square alg)) piece))
+    placement))
 
-;(define (piece-algsq-ls->placement piece-algsq-ls)
-;  (let ((bv (u8-list->bytevector (make-list 64 E))))
-;    (for-each
-;      (for-each-list-unpack (piece algsq) piece-algsq-ls
-;        (bytevector-u8-set! bv 
+(define (piece-algs->move position alg-from alg-to)
+  (list
+    (piece-at-coords position (cls->coords (alg->square alg-from)))
+    (cls->coords (alg->square alg-from))
+    (cls->coords (alg->square alg-to))
+    '()))
+
+(define (desc-args->position piece-alg-ls active-color)
+  (let ((placement (piece-alg-ls->placement piece-alg-ls)))
+    (make-position
+      placement
+      active-color
+      '()
+      '()
+      0 1
+      #f #f
+      (find-coords-of-piece placement K)
+      (find-coords-of-piece placement k))))
 
 )
