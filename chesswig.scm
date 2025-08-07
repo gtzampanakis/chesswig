@@ -4,15 +4,16 @@
 (export
   encode-fen
   decode-fen
-  move-to-alg
-  alg-to-square
+  move->alg
+  alg->square
   display-move-seq
   display-eval-obj
   display-position
   evaluate-position-at-ply
   legal-moves
-  cls-to-coords
-  coords-to-cls
+  updates-to-legal-moves-caused-by-move
+  cls->coords
+  coords->cls
   position-after-move
   position-en-passant
   is-position-check?
@@ -161,12 +162,12 @@
 
 ; cls means: "coords list" and it's a list of file and rank.
 ; coords means: a number encoding a cls
-(define (coords-to-cls coords)
+(define (coords->cls coords)
   (let-values (((q rem) (div-and-mod coords 8)))
     (let ((f rem) (r q))
       (list f r))))
 
-(define (cls-to-coords cls)
+(define (cls->coords cls)
   (let ((f (car cls)) (r (cadr cls)))
     (+ (* 8 r) f)))
 
@@ -223,7 +224,7 @@
 (define (char->symbol char)
   (string->symbol (string char)))
 
-(define (alg-to-square alg)
+(define (alg->square alg)
   (let* (
       (chars (string->list alg))
       (file-char (car chars))
@@ -248,7 +249,7 @@
         ((#\7) 6)
         ((#\8) 7)))))
 
-(define (file-to-alg file)
+(define (file->alg file)
   (case file
     ((0) "a")
     ((1) "b")
@@ -259,7 +260,7 @@
     ((6) "g")
     ((7) "h")))
 
-(define (rank-to-alg rank)
+(define (rank->alg rank)
   (case rank
     ((0) "1")
     ((1) "2")
@@ -270,10 +271,10 @@
     ((6) "7")
     ((7) "8")))
 
-(define (square-to-alg sq)
+(define (square->alg sq)
   (string-append
-    (file-to-alg (car (coords-to-cls sq)))
-    (rank-to-alg (cadr (coords-to-cls sq)))))
+    (file->alg (car (coords->cls sq)))
+    (rank->alg (cadr (coords->cls sq)))))
 
 (define (is-move-en-passant-capture? position move)
   (list-unpack move (piece coords-from coords-to promotion-piece)
@@ -286,7 +287,7 @@
     (piece-at-coords? position (caddr move))
     (is-move-en-passant-capture? position move)))
 
-(define (legal-squares-along-dirs-to-legal-squares along-dirs)
+(define (legal-squares-along-dirs->legal-squares along-dirs)
   (fold-left
     (lambda (acc dir+sqs)
       (let ((sqs (cadr dir+sqs)))
@@ -294,11 +295,11 @@
     '()
     along-dirs))
 
-(define (move-to-alg position move)
+(define (move->alg position move)
   (define piece-moving (car move))
   (define sq-from (cadr move))
   (define sq-to (caddr move))
-  (define sq-to-str (square-to-alg sq-to))
+  (define sq->str (square->alg sq-to))
   (define promotion-str
     (let ((promotion-piece (list-ref move 3)))
       (cond
@@ -317,7 +318,7 @@
     (cond
       ((or (= piece-moving P) (= piece-moving p))
         (if capture?
-          (file-to-alg (car (coords-to-cls sq-from)))
+          (file->alg (car (coords->cls sq-from)))
           ""))
       ((or (= piece-moving N) (= piece-moving n)) "N")
       ((or (= piece-moving B) (= piece-moving b)) "B")
@@ -332,17 +333,17 @@
           (lambda (piece coords)
             (when (and (not (= piece P)) (not (= piece p)))
               (when (= piece piece-moving)
-                (when (= (car (coords-to-cls coords)) (car (coords-to-cls sq-from)))
+                (when (= (car (coords->cls coords)) (car (coords->cls sq-from)))
                   ; When same type of piece on same file.
                   (when (not (equal? coords sq-from))
                     (for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (cont
-                            (rank-to-alg
-                              (cadr (coords-to-cls sq-from))))
+                            (rank->alg
+                              (cadr (coords->cls sq-from))))
                           (exit)))
-                      (legal-squares-along-dirs-to-legal-squares
+                      (legal-squares-along-dirs->legal-squares
                         (legal-squares-along-dirs-from-coords
                              position piece coords))))))))
           position)
@@ -354,17 +355,17 @@
           (lambda (piece coords)
             (when (and (not (= piece P)) (not (= piece p)))
               (when (= piece piece-moving)
-                (when (not (= (car (coords-to-cls coords)) (car (coords-to-cls sq-from))))
+                (when (not (= (car (coords->cls coords)) (car (coords->cls sq-from))))
                   ; When same type of piece on different file.
                   (when (not (equal? coords sq-from))
                     (for-each
                       (lambda (sq)
                         (when (equal? sq sq-to)
                           (cont
-                            (file-to-alg
-                              (car (coords-to-cls sq-from))))
+                            (file->alg
+                              (car (coords->cls sq-from))))
                           (exit)))
-                      (legal-squares-along-dirs-to-legal-squares
+                      (legal-squares-along-dirs->legal-squares
                         (legal-squares-along-dirs-from-coords
                              position piece coords))))))))
           position)
@@ -381,7 +382,7 @@
       file-str
       rank-str
       capture-str
-      sq-to-str
+      sq->str
       promotion-str
       check-or-checkmate-str))
   result)
@@ -436,7 +437,7 @@
 (define (decode-en-passant en-passant-string)
   (cond
     ((equal? en-passant-string "-") '())
-    (else (alg-to-square en-passant-string))))
+    (else (alg->square en-passant-string))))
 
 (define (decode-halfmoves halfmoves-string)
   (string->number halfmoves-string))
@@ -520,7 +521,7 @@
           (map symbol->chars castling)))
       (list #\ )
       (string->list
-        (if (null? en-passant) "-" (square-to-alg en-passant)))
+        (if (null? en-passant) "-" (square->alg en-passant)))
       (list #\ )
       (string->list (number->string halfmoves))
       (list #\ )
@@ -529,8 +530,8 @@
 (define (calc-next-coords-in-direction coords direction)
   (let-values (((prov-f prov-r)
       (let* (
-          (f (car (coords-to-cls coords)))
-          (r (cadr (coords-to-cls coords))))
+          (f (car (coords->cls coords)))
+          (r (cadr (coords->cls coords))))
         (cond
           ((= direction dir-u) (values f (1+ r)))
           ((= direction dir-r) (values (1+ f) r))
@@ -554,7 +555,7 @@
           ((= direction dir-nul) (values (- f 1) (+ r 2)))))))
     (if (or (> prov-f 7) (< prov-f 0) (> prov-r 7) (< prov-r 0))
       #f
-      (cls-to-coords (list prov-f prov-r)))))
+      (cls->coords (list prov-f prov-r)))))
 
 (define cache:all-coords-in-direction
   ; indices:
@@ -621,11 +622,11 @@
   (legal-squares-along-directions
       piece color coords position king-directions 1 #t #t))
 
-(define (find-coords-of-piece placement piece-to-find)
+(define (find-coords-of-piece placement piece->find)
   (let loop ((coords 0))
     (if (< coords 64)
       (let* ((piece (placement-ref placement coords)))
-        (if (= piece-to-find piece)
+        (if (= piece->find piece)
           coords
           (loop (1+ coords))))
       '())))
@@ -764,7 +765,7 @@
     (legal-squares-along-directions
       piece color coords position
         (list forward-direction)
-        (if (= (cadr (coords-to-cls coords)) initial-rank) 2 1) #f #t)
+        (if (= (cadr (coords->cls coords)) initial-rank) 2 1) #f #t)
     (legal-squares-along-directions
       piece color coords position
       (list forward-right-direction forward-left-direction) 1 #t #f)))
@@ -822,6 +823,9 @@
         (filter-out-moves-to-that-bring-king-in-check
                     position moves-w-king-possibly-in-check)))))
 
+(define (updates-to-legal-moves-caused-by-move legal-moves-ls move)
+  'foo)
+
 (define legal-squares-along-dirs-w-king-possibly-in-check
   (lambda (position)
     (let* (
@@ -849,8 +853,8 @@
             (define promotion-pieces
               (if
                 (or
-                  (and (= piece P) (= (cadr (coords-to-cls coords-to)) 7))
-                  (and (= piece p) (= (cadr (coords-to-cls coords-to)) 0)))
+                  (and (= piece P) (= (cadr (coords->cls coords-to)) 7))
+                  (and (= piece p) (= (cadr (coords->cls coords-to)) 0)))
                 (if (symbol=? (position-active-color position) 'w)
                   (list R N B Q)
                   (list r n b q))
@@ -889,16 +893,16 @@
       (position-castling position)
       (if pawn-move?
         (let (
-            (rank-from (cadr (coords-to-cls coords-from)))
-            (rank-to (cadr (coords-to-cls coords-to))))
+            (rank-from (cadr (coords->cls coords-from)))
+            (rank-to (cadr (coords->cls coords-to))))
           (if (symbol=? (position-active-color position) 'w)
             (if (and (= rank-from 1) (= rank-to 3))
-              (let ((file-from (car (coords-to-cls coords-from))))
-                (cls-to-coords (list file-from 2)))
+              (let ((file-from (car (coords->cls coords-from))))
+                (cls->coords (list file-from 2)))
               '())
             (if (and (= rank-from 6) (= rank-to 4))
-              (let ((file-from (car (coords-to-cls coords-from))))
-                (cls-to-coords (list file-from 5)))
+              (let ((file-from (car (coords->cls coords-from))))
+                (cls->coords (list file-from 5)))
               '())))
         '())
       (if (or capture? pawn-move?)
@@ -1011,7 +1015,7 @@
         (when first-iter
           (display "...")
           (display " ")))
-      (display (move-to-alg position (car move-seq)))
+      (display (move->alg position (car move-seq)))
       (display " ")
       (loop
         (position-after-move position (car move-seq))
@@ -1057,11 +1061,11 @@
                   (or (= piece P) (= piece p))
                   (or
                     (=
-                      (car (coords-to-cls coords-from))
-                      (+ (car (coords-to-cls en-passant-coords)) 1))
+                      (car (coords->cls coords-from))
+                      (+ (car (coords->cls en-passant-coords)) 1))
                     (=
-                      (car (coords-to-cls coords-from))
-                      (- (car (coords-to-cls en-passant-coords)) 1)))
+                      (car (coords->cls coords-from))
+                      (- (car (coords->cls en-passant-coords)) 1)))
                   (equal? coords en-passant-coords))))
             (loop
               (cdr all-coords)
@@ -1180,7 +1184,7 @@
     ((= piece q) "\x265b;")
     ((= piece k) "\x265a;")))
 
-(define (position-to-board-string position)
+(define (position->board-string position)
   (define s "")
   (set! s (string-append s "+---+---+---+---+---+---+---+---+\n"))
   (let loop-r ((r 7))
@@ -1191,7 +1195,7 @@
           (set! s (string-append s " "))
           (set! s (string-append s
                     (piece->board-string
-                        (piece-at-coords position (cls-to-coords (list f r))))))
+                        (piece-at-coords position (cls->coords (list f r))))))
           (set! s (string-append s " "))
           (set! s (string-append s "|"))
           (loop-f (1+ f))))
@@ -1206,8 +1210,16 @@
     (display "position: ")
     (display enc)
     (newline)
-    (display (position-to-board-string position))
+    (display (position->board-string position))
     (display "==========================================\n")
     (newline)))
+
+p "a4"
+
+;(define (piece-algsq-ls->placement piece-algsq-ls)
+;  (let ((bv (u8-list->bytevector (make-list 64 E))))
+;    (for-each
+;      (for-each-list-unpack (piece algsq) piece-algsq-ls
+;        (bytevector-u8-set! bv 
 
 )

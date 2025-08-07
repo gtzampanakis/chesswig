@@ -43,6 +43,7 @@
   (run-test test-is-position-checkmate r)
   (run-test test-is-position-stalemate r)
   (run-test test-decode-encode-fen r)
+  (run-test test-updates-to-legal-moves-of-rook-caused-by-move r)
   r)
 
 (define (assert-equal a b)
@@ -102,5 +103,11 @@
   (let* (
     (fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1"))
       (assert-equal (encode-fen (decode-fen fen)) fen)))
+
+(define (test-updates-to-legal-moves-of-rook-caused-by-move)
+  (let* (
+      (fen "k7/8/8/4R3/7R/8/8/K7 w - - 0 1")
+      (position (decode-fen fen)))
+    (assert-equal (updates-to-legal-moves-caused-by-move 'foo 'foo) 'foo)))
 
 )
