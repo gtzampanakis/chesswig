@@ -827,32 +827,41 @@
                     position moves-w-king-possibly-in-check)))))
 
 (define (updates-to-legal-moves-caused-by-move position move)
-  ; TODO: check from coords-from
   (list-unpack move (piece coords-from coords-to promotion-piece)
-    (let* ((moves (legal-moves position)))
-      (let loop ((acc '()) (dirs rook-directions))
-        (if (null? dirs) acc
+    (let loop (
+        (acc '())
+        (all-starting-coords (list coords-to coords-from))
+        (all-coords-to-set-to-E (list coords-from coords-to)))
+      (if (null? all-starting-coords) acc
+        (let (
+            (starting-coords (car all-starting-coords))
+            (coords-to-set-to-E (car all-coords-to-set-to-E)))
           (loop
-            (let ((dir (car dirs)))
-              (let loop (
-                  (acc acc)
-                  (all-coords (all-coords-in-direction coords-to dir)))
-                (if (null? all-coords) acc
-                  (let ((coords (car all-coords)))
-                    (let (
-                        (piece
-                          (if (= coords coords-from)
-                            E
-                            (piece-at-coords position coords))))
-                      (cond
-                        ((= piece R) (cons coords acc))
-                        ((= piece r) (cons coords acc))
-                        ((= piece Q) (cons coords acc))
-                        ((= piece q) (cons coords acc))
-                        ((= piece K) (cons coords acc))
-                        ((= piece k) (cons coords acc))
-                        (else (loop acc (cdr all-coords)))))))))
-            (cdr dirs)))))))
+            (let loop ((acc acc) (dirs rook-directions))
+              (if (null? dirs) acc
+                (loop
+                  (let ((dir (car dirs)))
+                    (let loop (
+                        (acc acc)
+                        (all-coords (all-coords-in-direction starting-coords dir)))
+                      (if (null? all-coords) acc
+                        (let ((coords (car all-coords)))
+                          (let (
+                              (piece
+                                (if (= coords coords-to-set-to-E)
+                                  E
+                                  (piece-at-coords position coords))))
+                            (cond
+                              ((= piece R) (cons coords acc))
+                              ((= piece r) (cons coords acc))
+                              ((= piece Q) (cons coords acc))
+                              ((= piece q) (cons coords acc))
+                              ((= piece K) (cons coords acc))
+                              ((= piece k) (cons coords acc))
+                              (else (loop acc (cdr all-coords)))))))))
+                  (cdr dirs))))
+            (cdr all-starting-coords)
+            (cdr all-coords-to-set-to-E)))))))
 
 (define legal-squares-along-dirs-w-king-possibly-in-check
   (lambda (position)

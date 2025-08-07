@@ -16,6 +16,19 @@
 (define fen-simple "6nk/8/8/8/8/8/8/KN6 w - - 0 1")
 (define fen-en-passant "5r2/7p/3R4/p3pk2/1p2N2p/1P2BP2/6PK/4r3 w - - 1 0")
 
+(define (uniq-sort ls)
+  (let ((sorted (sort < ls)))
+    (reverse
+      (fold-left
+        (lambda (acc el)
+          (if (null? acc)
+            (cons el acc)
+            (if (equal? (car acc) el)
+              acc
+              (cons el acc))))
+        '()
+        sorted))))
+
 (define-condition-type &test-failure &condition make-test-failure test-failure?
   (desc-ls test-failure-desc-ls))
 
@@ -129,15 +142,17 @@
             (,r "h3")
             (,Q "h7"))
           'w)))
+    (display-position position)
     (assert-equal
-      (updates-to-legal-moves-caused-by-move 
-        position
-        (piece-algs->move position "h4" "h5")
-        )
-      (list
-        (cls->coords (alg->square "e5"))
-        (cls->coords (alg->square "h3"))
-        (cls->coords (alg->square "h7"))
-        ))))
+      (uniq-sort
+        (updates-to-legal-moves-caused-by-move 
+          position
+          (piece-algs->move position "h4" "h5")))
+      (uniq-sort
+        (list
+          (cls->coords (alg->square "e5"))
+          (cls->coords (alg->square "h3"))
+          (cls->coords (alg->square "h7"))
+          )))))
 
 )
