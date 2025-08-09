@@ -25,10 +25,15 @@
   B b
   K k
   Q q
+  dir-u dir-r dir-d dir-l
+  dir-ur dir-dr dir-dl dir-ul
+  dir-nur dir-nru dir-nrd dir-ndr
+  dir-ndl dir-nld dir-nlu dir-nul
   track-positions-examined?
   n-positions-examined
   desc-args->position
   piece-algs->move
+  alg->coords
 )
 (import (chezscheme) (util) (unpack))
 
@@ -827,6 +832,33 @@
                     position moves-w-king-possibly-in-check)))))
 
 (define (updates-to-legal-moves-caused-by-move position move)
+  (define (acc-on-starting-coords acc starting-coords coords-to-set-to-E)
+    (let loop ((acc acc) (dirs rook-directions))
+      (if (null? dirs) acc
+        (loop
+          (let ((dir (car dirs)))
+            (acc-on-dir
+              acc starting-coords dir coords-to-set-to-E))
+          (cdr dirs)))))
+  (define (acc-on-dir acc starting-coords dir coords-to-set-to-E)
+    (let loop (
+        (acc acc)
+        (all-coords (all-coords-in-direction starting-coords dir)))
+      (if (null? all-coords) acc
+        (let ((coords (car all-coords)))
+          (let (
+              (piece
+                (if (= coords coords-to-set-to-E)
+                  E
+                  (piece-at-coords position coords))))
+            (cond
+              ((= piece R) (cons (list coords dir) acc))
+              ((= piece r) (cons (list coords dir) acc))
+              ((= piece Q) (cons (list coords dir) acc))
+              ((= piece q) (cons (list coords dir) acc))
+              ((= piece K) (cons (list coords dir) acc))
+              ((= piece k) (cons (list coords dir) acc))
+              (else (loop acc (cdr all-coords)))))))))
   (list-unpack move (piece coords-from coords-to promotion-piece)
     (let loop (
         (acc '())
@@ -837,29 +869,7 @@
             (starting-coords (car all-starting-coords))
             (coords-to-set-to-E (car all-coords-to-set-to-E)))
           (loop
-            (let loop ((acc acc) (dirs rook-directions))
-              (if (null? dirs) acc
-                (loop
-                  (let ((dir (car dirs)))
-                    (let loop (
-                        (acc acc)
-                        (all-coords (all-coords-in-direction starting-coords dir)))
-                      (if (null? all-coords) acc
-                        (let ((coords (car all-coords)))
-                          (let (
-                              (piece
-                                (if (= coords coords-to-set-to-E)
-                                  E
-                                  (piece-at-coords position coords))))
-                            (cond
-                              ((= piece R) (cons coords acc))
-                              ((= piece r) (cons coords acc))
-                              ((= piece Q) (cons coords acc))
-                              ((= piece q) (cons coords acc))
-                              ((= piece K) (cons coords acc))
-                              ((= piece k) (cons coords acc))
-                              (else (loop acc (cdr all-coords)))))))))
-                  (cdr dirs))))
+            (acc-on-starting-coords acc starting-coords coords-to-set-to-E)
             (cdr all-starting-coords)
             (cdr all-coords-to-set-to-E)))))))
 
@@ -1270,5 +1280,8 @@
       #f #f
       (find-coords-of-piece placement K)
       (find-coords-of-piece placement k))))
+
+(define (alg->coords alg)
+  (cls->coords (alg->square alg)))
 
 )

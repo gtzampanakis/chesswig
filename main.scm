@@ -86,23 +86,26 @@
   (define position
     (decode-fen fen-mate-in-2))
 
-  (unless (run-tests)
+  (if (run-tests)
+    (begin
+      (display "Tests passed")
+      (newline))
     (raise "tests-failed"))
 
-  (display "Started")(newline)
+  ; (display "Started")(newline)
 
-  (display-position position)
+  ; (display-position position)
 
-  (let ((eval-obj (evaluate-position-at-ply position 3/2 0/2)))
-      (display-eval-obj position eval-obj 8))
-  (newline)
+  ; (let ((eval-obj (evaluate-position-at-ply position 3/2 0/2)))
+  ;     (display-eval-obj position eval-obj 8))
+  ; (newline)
 
-  (when track-positions-examined?
-    (display "Number of positions examined: ")
-    (display (car n-positions-examined))
-    (newline))
+  ; (when track-positions-examined?
+  ;   (display "Number of positions examined: ")
+  ;   (display (car n-positions-examined))
+  ;   (newline))
 
-  (display "Done")(newline)
+  ; (display "Done")(newline)
 
 )
 

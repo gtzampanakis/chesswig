@@ -144,15 +144,14 @@
           'w)))
     (display-position position)
     (assert-equal
-      (uniq-sort
-        (updates-to-legal-moves-caused-by-move 
-          position
-          (piece-algs->move position "h4" "h5")))
-      (uniq-sort
-        (list
-          (cls->coords (alg->square "e5"))
-          (cls->coords (alg->square "h3"))
-          (cls->coords (alg->square "h7"))
-          )))))
+      (updates-to-legal-moves-caused-by-move 
+        position
+        (piece-algs->move position "h4" "h5"))
+      (list
+        (list (alg->coords "h3") dir-d)
+        (list (alg->coords "h7") dir-u)
+        (list (alg->coords "e5") dir-l)
+        (list (alg->coords "h3") dir-d)
+        (list (alg->coords "h7") dir-u)))))
 
 )
