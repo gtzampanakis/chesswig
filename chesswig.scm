@@ -833,14 +833,33 @@
 
 (define (updates-to-legal-moves-caused-by-move position move)
   (define (acc-on-starting-coords acc starting-coords coords-to-set-to-E)
-    (let loop ((acc acc) (dirs rook-directions))
-      (if (null? dirs) acc
-        (loop
-          (let ((dir (car dirs)))
-            (acc-on-dir
-              acc starting-coords dir coords-to-set-to-E))
-          (cdr dirs)))))
-  (define (acc-on-dir acc starting-coords dir coords-to-set-to-E)
+    (let loop (
+        (acc acc)
+        (dirs-collections
+          (list
+            rook-directions
+            bishop-directions))
+        (pieces-to-search-collections
+          (list
+            (list R r Q q K k)
+            (list B b Q q K k))))
+      (if (null? dirs-collections) acc
+        (let (
+            (dirs-collection (car dirs-collections))
+            (pieces-to-search-collection (car pieces-to-search-collections)))
+          (loop
+            (let loop ((acc acc) (dirs dirs-collection))
+              (if (null? dirs) acc
+                (loop
+                  (let ((dir (car dirs)))
+                    (acc-on-dir
+                      acc starting-coords dir
+                      coords-to-set-to-E pieces-to-search-collection))
+                  (cdr dirs))))
+            (cdr dirs-collections)
+            (cdr pieces-to-search-collections))))))
+  (define (acc-on-dir acc starting-coords dir
+                    coords-to-set-to-E pieces-to-search)
     (let loop (
         (acc acc)
         (all-coords (all-coords-in-direction starting-coords dir)))
@@ -852,12 +871,8 @@
                   E
                   (piece-at-coords position coords))))
             (cond
-              ((= piece R) (cons (list coords dir) acc))
-              ((= piece r) (cons (list coords dir) acc))
-              ((= piece Q) (cons (list coords dir) acc))
-              ((= piece q) (cons (list coords dir) acc))
-              ((= piece K) (cons (list coords dir) acc))
-              ((= piece k) (cons (list coords dir) acc))
+              ((memq piece pieces-to-search)
+                      (cons (list coords dir) acc))
               (else (loop acc (cdr all-coords)))))))))
   (list-unpack move (piece coords-from coords-to promotion-piece)
     (let loop (

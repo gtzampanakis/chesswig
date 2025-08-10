@@ -140,7 +140,9 @@
             (,R "e5")
             (,R "h4")
             (,r "h3")
-            (,Q "h7"))
+            (,Q "h7")
+            (,b "g5")
+            (,q "g3"))
           'w)))
     (display-position position)
     (assert-equal
@@ -148,6 +150,8 @@
         position
         (piece-algs->move position "h4" "h5"))
       (list
+        (list (alg->coords "g5") dir-ul)
+        (list (alg->coords "g3") dir-dl)
         (list (alg->coords "h3") dir-d)
         (list (alg->coords "h7") dir-u)
         (list (alg->coords "e5") dir-l)
