@@ -56,7 +56,7 @@
   (run-test test-is-position-checkmate r)
   (run-test test-is-position-stalemate r)
   (run-test test-decode-encode-fen r)
-  (run-test test-updates-to-legal-moves-of-rook-caused-by-move r)
+  (run-test test-updates-to-legal-moves-caused-by-move r)
   (run-test test->desc-args->position-1 r)
   r)
 
@@ -130,19 +130,21 @@
         'w))
     "k7/8/8/4R3/7R/8/8/K7 w - - 0 1"))
 
-(define (test-updates-to-legal-moves-of-rook-caused-by-move)
+(define (test-updates-to-legal-moves-caused-by-move)
   (let* (
       (position
         (desc-args->position
           `(
-            (,K "a1")
             (,k "a8")
             (,R "e5")
             (,R "h4")
             (,r "h3")
-            (,Q "h7")
-            (,b "g5")
-            (,q "g3"))
+            (,K "h8")
+            (,b "g6")
+            (,q "g3")
+            (,n "g2")
+            (,N "f4")
+            (,N "e7"))
           'w)))
     (display-position position)
     (assert-equal
@@ -150,12 +152,12 @@
         position
         (piece-algs->move position "h4" "h5"))
       (list
-        (list (alg->coords "g5") dir-ul)
+        (list (alg->coords "g2") dir-ndl)
         (list (alg->coords "g3") dir-dl)
         (list (alg->coords "h3") dir-d)
-        (list (alg->coords "h7") dir-u)
+        (list (alg->coords "f4") dir-nld)
+        (list (alg->coords "g6") dir-ul)
         (list (alg->coords "e5") dir-l)
-        (list (alg->coords "h3") dir-d)
-        (list (alg->coords "h7") dir-u)))))
+        (list (alg->coords "h3") dir-d)))))
 
 )

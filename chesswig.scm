@@ -838,15 +838,24 @@
         (dirs-collections
           (list
             rook-directions
-            bishop-directions))
+            bishop-directions
+            knight-directions))
         (pieces-to-search-collections
           (list
-            (list R r Q q K k)
-            (list B b Q q K k))))
+            (list R r Q q K k P p)
+            (list B b Q q K k P p)
+            (list N n)))
+        (pieces-to-search-distances-collection
+          (list
+            (list 7 7 7 7 1 1 1 1)
+            (list 7 7 7 7 1 1 1 1)
+            (list 1 1)))
+        )
       (if (null? dirs-collections) acc
         (let (
             (dirs-collection (car dirs-collections))
-            (pieces-to-search-collection (car pieces-to-search-collections)))
+            (pieces-to-search-collection (car pieces-to-search-collections))
+            (pieces-to-search-distances (car pieces-to-search-distances-collection)))
           (loop
             (let loop ((acc acc) (dirs dirs-collection))
               (if (null? dirs) acc
@@ -854,14 +863,16 @@
                   (let ((dir (car dirs)))
                     (acc-on-dir
                       acc starting-coords dir
-                      coords-to-set-to-E pieces-to-search-collection))
+                      coords-to-set-to-E pieces-to-search-collection pieces-to-search-distances))
                   (cdr dirs))))
             (cdr dirs-collections)
-            (cdr pieces-to-search-collections))))))
+            (cdr pieces-to-search-collections)
+            (cdr pieces-to-search-distances-collection))))))
   (define (acc-on-dir acc starting-coords dir
-                    coords-to-set-to-E pieces-to-search)
+                    coords-to-set-to-E pieces-to-search pieces-to-search-distances)
     (let loop (
         (acc acc)
+        (coords-i 0)
         (all-coords (all-coords-in-direction starting-coords dir)))
       (if (null? all-coords) acc
         (let ((coords (car all-coords)))
@@ -870,10 +881,19 @@
                 (if (= coords coords-to-set-to-E)
                   E
                   (piece-at-coords position coords))))
-            (cond
-              ((memq piece pieces-to-search)
-                      (cons (list coords dir) acc))
-              (else (loop acc (cdr all-coords)))))))))
+            (let loop-over-pieces (
+                (pieces-to-search pieces-to-search)
+                (pieces-to-search-distances pieces-to-search-distances))
+              (if (null? pieces-to-search)
+                (loop acc (1+ coords-i) (cdr all-coords))
+                (let (
+                    (piece-to-search (car pieces-to-search))
+                    (distance (car pieces-to-search-distances)))
+                  (if (and (= piece piece-to-search) (<= coords-i distance))
+                    (cons (list coords dir) acc)
+                    (loop-over-pieces
+                      (cdr pieces-to-search)
+                      (cdr pieces-to-search-distances)))))))))))
   (list-unpack move (piece coords-from coords-to promotion-piece)
     (let loop (
         (acc '())
