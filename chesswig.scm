@@ -11,6 +11,7 @@
   display-position
   evaluate-position-at-ply
   legal-moves
+  legal-moves-w-king-possibly-in-check
   updates-to-legal-moves-caused-by-move
   cls->coords
   coords->cls
@@ -34,6 +35,7 @@
   desc-args->position
   piece-algs->move
   alg->coords
+  sorted-move-list
 )
 (import (chezscheme) (util) (unpack))
 
@@ -1318,5 +1320,13 @@
 
 (define (alg->coords alg)
   (cls->coords (alg->square alg)))
+
+(define (sorted-move-list position move-list)
+  (sort
+    string<?
+    (map
+      (lambda (move)
+        (move->alg position move))
+      move-list)))
 
 )

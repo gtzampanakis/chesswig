@@ -21,6 +21,8 @@
   make-queue
   worker-proc
   parallel-map
+  rec<
+  string-join
   )
 (import
   (chezscheme))
@@ -129,6 +131,17 @@
             (cdr chars)
             return))))))
 
+(define (string-join ls)
+  (if
+    (null? ls)
+    ""
+    (if (null? (cdr ls))
+      (car ls)
+      (string-append
+        (car ls)
+        " "
+        (string-join (cdr ls))))))
+
 (define (first ls) (car ls))
 
 (define (last ls)
@@ -235,5 +248,26 @@
             output-obj))
         (loop (+ ndone 1))))
     result-ls))
+
+(define (rec< a b)
+  (define (rec= a b)
+    (and (not (rec< b a)) (not (rec< a b))))
+  (cond
+    ((and (number? a) (number? b)) (< a b))
+    ((and (number? a) (list? b)) -1)
+    ((and (list? a) (number? b)) 1)
+    ((and (list? a) (list? b))
+      (let (
+          (la (length a))
+          (lb (length b)))
+        (if (= la lb)
+          (let loop ((a a) (b b))
+            (if (null? a) 0
+              (let ((ai (car a)) (bi (car b)))
+                (if (rec= ai bi)
+                  (loop (cdr a) (cdr b))
+                  (rec< ai bi)))))
+          (rec< la lb))))
+    (else (raise "rec<: Unexpected types"))))
 
 )

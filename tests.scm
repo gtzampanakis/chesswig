@@ -4,7 +4,7 @@
 (export
   run-tests
 )
-(import (chezscheme) (chesswig))
+(import (chezscheme) (util) (chesswig))
 
 (define fen-initial "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 (define fen-empty "8/8/8/8/8/8/8/8 w KQkq - 0 1")
@@ -50,6 +50,7 @@
 
 (define (run-tests)
   (define r #t)
+  (run-test test-rec< r)
   (run-test test-simple-mate-in-2 r)
   (run-test test-king-can-be-exposed r)
   (run-test test-is-position-check r)
@@ -57,13 +58,23 @@
   (run-test test-is-position-stalemate r)
   (run-test test-decode-encode-fen r)
   (run-test test-updates-to-legal-moves-caused-by-move r)
-  (run-test test->desc-args->position-1 r)
+  (run-test test-desc-args->position-1 r)
+  (run-test test-legal-moves-w-king-possibly-in-check r)
   r)
 
 (define (assert-equal a b)
   (let ((r (equal? a b)))
     (unless r
       (raise-continuable (make-test-failure (list a "!=" b))))))
+
+(define (test-rec<)
+  (assert-equal (sort rec< (list 2 1 0)) (list 0 1 2))
+  (assert-equal (sort rec< (list '() 1 0)) (list 0 1 '()))
+  (assert-equal
+    (sort rec<
+      (list '() (list 2 1) (list 1 0)))
+      (list '() (list 1 0) (list 2 1)))
+  )
 
 (define (test-simple-mate-in-2)
   (define position
@@ -118,7 +129,7 @@
     (fen "4n3/3bpp2/1p6/3K2n1/8/3k4/1n6/4r3 w - - 0 1"))
       (assert-equal (encode-fen (decode-fen fen)) fen)))
 
-(define (test->desc-args->position-1)
+(define (test-desc-args->position-1)
   (assert-equal
     (encode-fen
       (desc-args->position
@@ -129,6 +140,19 @@
           (,R "h4"))
         'w))
     "k7/8/8/4R3/7R/8/8/K7 w - - 0 1"))
+
+(define (test-legal-moves-w-king-possibly-in-check)
+  (let* (
+      (position
+        (desc-args->position
+          `(
+            (,k "a8")
+            (,K "h8"))
+          'w)))
+  (display-position position)
+  (assert-equal
+    (sorted-move-list position (legal-moves-w-king-possibly-in-check position))
+    (list "Kg7" "Kg8" "Kh7"))))
 
 (define (test-updates-to-legal-moves-caused-by-move)
   (let* (
@@ -148,16 +172,18 @@
           'w)))
     (display-position position)
     (assert-equal
-      (updates-to-legal-moves-caused-by-move 
-        position
-        (piece-algs->move position "h4" "h5"))
-      (list
-        (list (alg->coords "g2") dir-ndl)
-        (list (alg->coords "g3") dir-dl)
-        (list (alg->coords "h3") dir-d)
-        (list (alg->coords "f4") dir-nld)
-        (list (alg->coords "g6") dir-ul)
-        (list (alg->coords "e5") dir-l)
-        (list (alg->coords "h3") dir-d)))))
+      (sort rec<
+        (updates-to-legal-moves-caused-by-move 
+          position
+          (piece-algs->move position "h4" "h5")))
+      (sort rec<
+        (list
+          (list (alg->coords "e5") dir-l)
+          (list (alg->coords "f4") dir-nld)
+          (list (alg->coords "g2") dir-ndl)
+          (list (alg->coords "g3") dir-dl)
+          (list (alg->coords "g6") dir-ul)
+          (list (alg->coords "h3") dir-d)
+          (list (alg->coords "h3") dir-d))))))
 
 )
