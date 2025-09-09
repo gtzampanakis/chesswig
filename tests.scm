@@ -146,13 +146,13 @@
       (position
         (desc-args->position
           `(
-            (,k "a8")
+            (,k "f8")
             (,K "h8"))
-          'w)))
+          'b)))
   (display-position position)
   (assert-equal
     (sorted-move-list position (legal-moves-w-king-possibly-in-check position))
-    (list "Kg7" "Kg8" "Kh7"))))
+    (list "Ke7" "Ke8" "Kf7" "Kg7+" "Kg8+"))))
 
 (define (test-updates-to-legal-moves-caused-by-move)
   (let* (
