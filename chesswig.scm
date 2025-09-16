@@ -36,6 +36,7 @@
   piece-algs->move
   alg->coords
   sorted-move-list
+  dirs-merged
 )
 (import (chezscheme) (util) (unpack))
 
@@ -89,6 +90,16 @@
     dir-ur dir-dr dir-dl dir-ul
     dir-nur dir-nru dir-nrd dir-ndr
     dir-ndl dir-nld dir-nlu dir-nul))
+
+(define all-opposite-directions
+  (vector
+    dir-d dir-l dir-u dir-r
+    dir-dl dir-ul dir-ur dir-dr
+    dir-ndl dir-nld dir-nlu dir-nul
+    dir-nur dir-nru dir-nrd dir-ndr))
+
+(define (opposite-dir dir)
+  (vector-ref all-opposite-directions dir))
 
 (define knight-directions
   (list
@@ -355,7 +366,7 @@
                           (exit)))
                       (legal-squares-along-dirs->legal-squares
                         (legal-squares-along-dirs-from-coords
-                             position piece coords))))))))
+                             position piece coords 'all))))))))
           position)
         "")))
   (define file-str
@@ -377,7 +388,7 @@
                           (exit)))
                       (legal-squares-along-dirs->legal-squares
                         (legal-squares-along-dirs-from-coords
-                             position piece coords))))))))
+                             position piece coords 'all))))))))
           position)
         "")))
   (define next-position (position-after-move position move))
@@ -616,21 +627,33 @@
     (null? (legal-moves position))
     (not (is-position-check? position))))
 
-(define (legal-squares-along-dirs-for-rook position piece color coords)
-  (legal-squares-along-directions
-      piece color coords position rook-directions 7 #t #t))
+(define (dirs-merged dirs1 dirs2)
+  (if (eq? dirs2 'all)
+    dirs1
+    (let loop ((r '()) (dirs2 dirs2))
+      (if (null? dirs2) r
+        (let ((dir2 (car dirs2)))
+          (loop
+            (if (memq dir2 dirs1)
+              (cons dir2 r)
+              r)
+            (cdr dirs2)))))))
 
-(define (legal-squares-along-dirs-for-bishop position piece color coords)
+(define (legal-squares-along-dirs-for-rook position piece color coords dirs)
   (legal-squares-along-directions
-      piece color coords position bishop-directions 7 #t #t))
+      piece color coords position (dirs-merged rook-directions dirs) 7 #t #t))
 
-(define (legal-squares-along-dirs-for-queen position piece color coords)
+(define (legal-squares-along-dirs-for-bishop position piece color coords dirs)
   (legal-squares-along-directions
-      piece color coords position queen-directions 7 #t #t))
+      piece color coords position (dirs-merged bishop-directions dirs) 7 #t #t))
 
-(define (legal-squares-along-dirs-for-king position piece color coords)
+(define (legal-squares-along-dirs-for-queen position piece color coords dirs)
   (legal-squares-along-directions
-      piece color coords position king-directions 1 #t #t))
+      piece color coords position (dirs-merged queen-directions dirs) 7 #t #t))
+
+(define (legal-squares-along-dirs-for-king position piece color coords dirs)
+  (legal-squares-along-directions
+      piece color coords position (dirs-merged king-directions dirs) 1 #t #t))
 
 (define (find-coords-of-piece placement piece->find)
   (let loop ((coords 0))
@@ -766,7 +789,7 @@
             king
             king-coords))))))
 
-(define (legal-squares-along-dirs-for-pawn position piece color coords)
+(define (legal-squares-along-dirs-for-pawn position piece color coords dirs)
   (define forward-direction (if (symbol=? color 'w) dir-u dir-d))
   (define forward-right-direction (if (symbol=? color 'w) dir-ur dir-dl))
   (define forward-left-direction (if (symbol=? color 'w) dir-ul dir-dr))
@@ -774,11 +797,12 @@
   (append
     (legal-squares-along-directions
       piece color coords position
-        (list forward-direction)
+        (dirs-merged (list forward-direction) dirs)
         (if (= (cadr (coords->cls coords)) initial-rank) 2 1) #f #t)
     (legal-squares-along-directions
       piece color coords position
-      (list forward-right-direction forward-left-direction) 1 #t #f)))
+      (dirs-merged (list forward-right-direction forward-left-direction) dirs)
+      1 #t #f)))
 
 (define (legal-square-for-knight-along-direction
                     dir position piece color coords)
@@ -791,7 +815,7 @@
       #f
       (car sqs-in-dir))))
 
-(define (legal-squares-along-dirs-for-knight position piece color coords)
+(define (legal-squares-along-dirs-for-knight position piece color coords dirs)
   (fold-left
     (lambda (acc dir)
       (let ((sq (legal-square-for-knight-along-direction
@@ -800,7 +824,7 @@
     '()
     knight-directions))
 
-(define (legal-squares-along-dirs-from-coords position piece coords)
+(define (legal-squares-along-dirs-from-coords position piece coords dirs)
   (if (= piece E) '()
     (let ((m (modulo piece E)))
       (let (
@@ -812,7 +836,7 @@
               ((= m N-base) legal-squares-along-dirs-for-knight)
               ((= m Q-base) legal-squares-along-dirs-for-queen)
               ((= m K-base) legal-squares-along-dirs-for-king))))
-        (proc position piece (piece-color piece) coords)))))
+        (proc position piece (piece-color piece) coords dirs)))))
 
 (define (filter-out-moves-to-that-bring-king-in-check position moves)
   (filter
@@ -829,7 +853,7 @@
       (let (
           (moves-w-king-possibly-in-check
             (legal-moves-w-king-possibly-in-check
-              position)))
+              position 'all)))
         (filter-out-moves-to-that-bring-king-in-check
                     position moves-w-king-possibly-in-check)))))
 
@@ -911,7 +935,7 @@
             (cdr all-coords-to-set-to-E)))))))
 
 (define legal-squares-along-dirs-w-king-possibly-in-check
-  (lambda (position)
+  (lambda (position dirs)
     (let* (
         (active-color (position-active-color position))
         (white-to-play? (symbol=? active-color 'w))
@@ -924,11 +948,12 @@
             piece
             coords-from
             (legal-squares-along-dirs-from-coords
-                position piece coords-from)))
+                position piece coords-from dirs)))
         position))))
 
-(define (legal-moves-w-king-possibly-in-check position)
-  (let ((obj (legal-squares-along-dirs-w-king-possibly-in-check position)))
+(define (legal-moves-w-king-possibly-in-check position dirs)
+  (let (
+      (obj (legal-squares-along-dirs-w-king-possibly-in-check position dirs)))
     (define moves '())
     (for-each-list-unpack (piece coords-from obj) obj
       (for-each-list-unpack (direction sqs) obj
@@ -944,12 +969,15 @@
                   (list r n b q))
                 '()))
             (if (null? promotion-pieces)
-              (set! moves (cons (list piece coords-from coords-to '()) moves))
+              (set!
+                moves
+                (cons (list piece coords-from coords-to '()) moves))
               (for-each
                 (lambda (promotion-piece)
                   (set! moves
                     (cons
-                      (list piece coords-from coords-to promotion-piece) moves)))
+                      (list
+                        piece coords-from coords-to promotion-piece) moves)))
                 promotion-pieces)))
           sqs)))
     moves))
@@ -1328,5 +1356,8 @@
       (lambda (move)
         (move->alg position move))
       move-list)))
+
+;(define (updated-legal-moves-w-king-possibly-in-check
+;          position moves-prior-to-move move)
 
 )

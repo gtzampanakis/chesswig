@@ -59,7 +59,9 @@
   (run-test test-decode-encode-fen r)
   (run-test test-updates-to-legal-moves-caused-by-move r)
   (run-test test-desc-args->position-1 r)
-  (run-test test-legal-moves-w-king-possibly-in-check r)
+  (run-test test-legal-moves-w-king-possibly-in-check-1 r)
+  (run-test test-legal-moves-w-king-possibly-in-check-2 r)
+  (run-test test-dirs-merged r)
   r)
 
 (define (assert-equal a b)
@@ -141,7 +143,7 @@
         'w))
     "k7/8/8/4R3/7R/8/8/K7 w - - 0 1"))
 
-(define (test-legal-moves-w-king-possibly-in-check)
+(define (test-legal-moves-w-king-possibly-in-check-1)
   (let* (
       (position
         (desc-args->position
@@ -149,10 +151,32 @@
             (,k "f8")
             (,K "h8"))
           'b)))
+  (assert-equal
+    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all))
+    (list "Ke7" "Ke8" "Kf7" "Kg7+" "Kg8+"))))
+
+(define (test-legal-moves-w-king-possibly-in-check-2)
+  (let* (
+      (position
+        (desc-args->position
+          `(
+            (,r "f7")
+            (,K "h8"))
+          'b)))
   (display-position position)
   (assert-equal
-    (sorted-move-list position (legal-moves-w-king-possibly-in-check position))
-    (list "Ke7" "Ke8" "Kf7" "Kg7+" "Kg8+"))))
+    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all))
+    (list
+      "Ra7" "Rb7" "Rc7" "Rd7"
+      "Re7" "Rf1" "Rf2" "Rf3"
+      "Rf4" "Rf5" "Rf6" "Rf8+" "Rg7" "Rh7+"))
+    (let* (
+        (move (piece-algs->move position "f7" "f8"))
+        (upds (updates-to-legal-moves-caused-by-move position move)))
+      (assert-equal
+        upds
+        (list
+          (list (alg->coords "h8") dir-r))))))
 
 (define (test-updates-to-legal-moves-caused-by-move)
   (let* (
@@ -170,7 +194,7 @@
             (,N "f4")
             (,N "e7"))
           'w)))
-    (display-position position)
+    ;(display-position position)
     (assert-equal
       (sort rec<
         (updates-to-legal-moves-caused-by-move 
@@ -185,5 +209,10 @@
           (list (alg->coords "g6") dir-ul)
           (list (alg->coords "h3") dir-d)
           (list (alg->coords "h3") dir-d))))))
+
+(define (test-dirs-merged)
+  (assert-equal (dirs-merged '(1 2 3) 'all) '(1 2 3))
+  (assert-equal (dirs-merged '(1 2 3) '(1)) '(1))
+  (assert-equal (dirs-merged '(1 2 3) '(2 3 4)) '(3 2)))
 
 )
