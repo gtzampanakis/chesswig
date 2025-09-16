@@ -152,7 +152,7 @@
             (,K "h8"))
           'b)))
   (assert-equal
-    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all))
+    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all-dirs))
     (list "Ke7" "Ke8" "Kf7" "Kg7+" "Kg8+"))))
 
 (define (test-legal-moves-w-king-possibly-in-check-2)
@@ -165,7 +165,7 @@
           'b)))
   (display-position position)
   (assert-equal
-    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all))
+    (sorted-move-list position (legal-moves-w-king-possibly-in-check position 'all-dirs))
     (list
       "Ra7" "Rb7" "Rc7" "Rd7"
       "Re7" "Rf1" "Rf2" "Rf3"
@@ -211,7 +211,7 @@
           (list (alg->coords "h3") dir-d))))))
 
 (define (test-dirs-merged)
-  (assert-equal (dirs-merged '(1 2 3) 'all) '(1 2 3))
+  (assert-equal (dirs-merged '(1 2 3) 'all-dirs) '(1 2 3))
   (assert-equal (dirs-merged '(1 2 3) '(1)) '(1))
   (assert-equal (dirs-merged '(1 2 3) '(2 3 4)) '(3 2)))
 
